@@ -256,7 +256,7 @@ const GUIDE = {
 
 const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
-function paragraphs(text: string): string {
+export function paragraphs(text: string): string {
   const out: string[] = [];
   let list: string[] = [];
   const flush = () => {
@@ -283,7 +283,7 @@ function paragraphs(text: string): string {
 
 /** The reading of a tab: what happened, why and what it means. */
 function analysisCard(report: ReportFull, id: SectionId): string {
-  if (report.notes.hidden.includes(id)) return "";
+  if (report.notes.hidden.includes(`text:${id}`)) return "";
   const text = report.notes.sectionNotes[id]?.trim();
   return text
     ? `<section class="an"><div class="ak">Análisis</div>${paragraphs(text)}</section>`
@@ -888,10 +888,30 @@ ${cards ? `<div class="uimp">${cards}</div>` : ""}
 
 /** One dimension of the traffic: each group with its share of the clicks and
  *  what it added or took away since the previous period. */
+/** The pages or searches of one segment, with their figures. */
+function memberTable(
+  line: SegmentLine,
+  kind: "page" | "query",
+  comparable: boolean,
+): string {
+  const members = line.members ?? [];
+  const rows = members
+    .map((member) => {
+      const change = comparable
+        ? deltaCell(member.clicks, member.prevClicks).h
+        : "";
+      return `<tr><td class="mxk">${kind === "page" ? pageLink(member.key) : queryLink(member.key)}</td><td class="r"><b>${num(member.clicks)}</b></td>${comparable ? `<td class="r">${change}</td>` : ""}<td class="r">${member.position === null ? "—" : pos(member.position)}</td><td class="r">${num(member.impressions)}</td></tr>`;
+    })
+    .join("");
+  const rest = (line.count ?? members.length) - members.length;
+  return `<div class="mxl"><table class="mbt"><thead><tr><th>${kind === "page" ? "Página" : "Búsqueda"}</th><th class="r">Clics</th>${comparable ? '<th class="r">Variación</th>' : ""}<th class="r">Posición</th><th class="r">Impresiones</th></tr></thead><tbody>${rows}</tbody></table>${rest > 0 ? `<p class="mxo">y ${num(rest)} ${kind === "page" ? "páginas" : "búsquedas"} más</p>` : ""}</div>`;
+}
+
 function mixCard(
   title: string,
   lines: SegmentLine[],
   comparable: boolean,
+  kind: "page" | "query" | null = null,
 ): string {
   if (lines.length === 0) return "";
   const total = lines.reduce((sum, line) => sum + line.clicks, 0);
@@ -904,7 +924,12 @@ function mixCard(
       const delta = comparable
         ? `<span class="dl ${diff > 0 ? "up" : diff < 0 ? "down" : "flat"}">${diff > 0 ? "▲" : diff < 0 ? "▼" : "="} ${diff === 0 ? "igual" : signedNum(diff)}${change !== null && diff !== 0 ? ` <i>(${change > 0 ? "+" : "−"}${one.format(Math.abs(change) * 100)} %)</i>` : ""}</span>`
         : "";
-      return `<div class="mxr${index === 0 ? " first" : ""}"><div class="mxb"><div class="mxt"><span class="mxn" title="${esc(line.label)}">${esc(line.label)}</span><b class="mxp${index === 0 ? " first" : ""}">${one.format(line.share * 100)}<small>%</small></b></div><div class="mxbar"><i style="--w:${Math.max(1.5, line.share * 100).toFixed(1)}%"></i></div><div class="mxm"><span>${num(line.clicks)} clics</span>${delta}</div></div></div>`;
+      const inner = `<div class="mxb"><div class="mxt"><span class="mxn" title="${esc(line.label)}">${esc(line.label)}</span><b class="mxp${index === 0 ? " first" : ""}">${one.format(line.share * 100)}<small>%</small></b></div><div class="mxbar"><i style="--w:${Math.max(1.5, line.share * 100).toFixed(1)}%"></i></div><div class="mxm"><span>${num(line.clicks)} clics</span>${delta}</div></div>`;
+      const first = index === 0 ? " first" : "";
+      if (kind === null || !line.members || line.members.length === 0) {
+        return `<div class="mxr${first}">${inner}</div>`;
+      }
+      return `<details class="mxd${first}"><summary class="mxr${first}">${inner}</summary>${memberTable(line, kind, comparable)}</details>`;
     })
     .join("");
   const net = comparable ? countDelta(total, prevTotal) : "";
@@ -935,10 +960,22 @@ function trafficMixBlock(report: ReportFull): string {
         ]
       : [];
   const cards = [
-    mixCard("Tipo de página", snapshot.segments.pageType, comparable),
+    mixCard("Tipo de página", snapshot.segments.pageType, comparable, "page"),
     mixCard("Dispositivo", snapshot.segments.device, comparable),
-    mixCard("Marca y resto de búsquedas", brandLines, comparable),
-    mixCard("Intención de búsqueda", snapshot.segments.intent, comparable),
+    mixCard(
+      "Marca y resto de búsquedas",
+      (snapshot.segments.brand ?? []).length > 0
+        ? snapshot.segments.brand
+        : brandLines,
+      comparable,
+      "query",
+    ),
+    mixCard(
+      "Intención de búsqueda",
+      snapshot.segments.intent,
+      comparable,
+      "query",
+    ),
   ].join("");
   if (!cards) return "";
   const net = snapshot.totals.clicks - snapshot.prevTotals.clicks;
@@ -949,7 +986,7 @@ function trafficMixBlock(report: ReportFull): string {
       ? `De dónde vienen los clics${net !== 0 ? ` y qué ha cambiado (${signedNum(net)})` : ""}`
       : "De dónde vienen los clics",
     comparable
-      ? "Cada grupo con su peso sobre el total y lo que ha sumado o restado frente al periodo anterior."
+      ? "Cada grupo con su peso sobre el total y lo que ha sumado o restado frente al periodo anterior. Pulsa en un grupo para ver las páginas o las búsquedas que lo forman."
       : "El peso de cada grupo sobre el total de clics.",
     `<div class="mixcols">${cards}</div>`,
   );
@@ -1411,9 +1448,11 @@ function serpPreview(
   title: string,
   description: string,
   label: string,
+  linked = true,
 ): string {
   const path = url ? pathOf(url) : "";
-  return `<div class="sl">${esc(label)}</div><div class="serp"><div class="su">${esc(host)}${esc(path)}</div><div class="st2">${esc(title)}</div>${description ? `<div class="sd">${esc(description)}</div>` : ""}</div>`;
+  const address = `${esc(host)}${esc(path)}`;
+  return `<div class="sl">${esc(label)}</div><div class="serp"><div class="su">${url && linked && isWeb(url) ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${address}</a>` : address}</div><div class="st2">${esc(title)}</div>${description ? `<div class="sd">${esc(description)}</div>` : ""}</div>`;
 }
 
 function opportunitiesBlock(report: ReportFull): string {
@@ -1459,7 +1498,17 @@ function opportunitiesBlock(report: ReportFull): string {
     },
   ]);
 
-  const howTo = `<div class="how2"><div class="hw"><span class="kd push">${OPP_KIND_LABEL.push}</span><p>La web ya está cerca de los tres primeros resultados, que se llevan la mayoría de los clics. Un empujón de contenido y enlaces puede subirla. <b>${num(pushes.length)}</b> búsquedas.</p></div><div class="hw"><span class="kd snippet">${OPP_KIND_LABEL.snippet}</span><p>La web ya aparece, pero pocas personas hacen clic. Suele arreglarse reescribiendo el título y la descripción, sin tocar la página. <b>${num(quick.length)}</b> búsquedas.</p></div></div><p class="hwn">Están ordenadas por prioridad: primero lo que más clics puede traer con menos trabajo. El esfuerzo (<span class="eff"><i class="on"></i><i></i><i></i></span> bajo, <span class="eff"><i class="on"></i><i class="on"></i><i></i></span> medio, <span class="eff"><i class="on"></i><i class="on"></i><i class="on"></i></span> alto) es una estimación según el tipo de oportunidad y la posición actual.</p>`;
+  const pushClicks = pushes.reduce((sum, row) => sum + row.potentialClicks, 0);
+  const snippetList = rows.filter((row) => row.kind === "snippet");
+  const snippetClicks = snippetList.reduce(
+    (sum, row) => sum + row.potentialClicks,
+    0,
+  );
+  const dots = (on: 1 | 2 | 3) =>
+    `<span class="eff"><i class="on"></i><i class="${on >= 2 ? "on" : ""}"></i><i class="${on >= 3 ? "on" : ""}"></i></span>`;
+  const legendRow = (label: string, value: string) =>
+    `<div><dt>${label}</dt><dd>${value}</dd></div>`;
+  const howTo = `<div class="how2"><div class="hw"><div class="hwh"><span class="kd push">${OPP_KIND_LABEL.push}</span><span class="hwc"><b>${num(pushes.length)}</b> ${pushes.length === 1 ? "búsqueda" : "búsquedas"} · <b class="gain">+${num(pushClicks)}</b> clics posibles</span></div><p>La web ya está cerca de los tres primeros resultados de Google, que se llevan la mayoría de los clics. Un empujón la puede subir.</p><dl class="hwl">${legendRow("Qué hace falta", "Ampliar el contenido y reforzar los enlaces internos hacia la página.")}${legendRow("Esfuerzo", `${dots(2)} medio o ${dots(3)} alto`)}${legendRow("Se nota en", "Entre 4 y 8 semanas, según la competencia.")}</dl></div><div class="hw"><div class="hwh"><span class="kd snippet">${OPP_KIND_LABEL.snippet}</span><span class="hwc"><b>${num(snippetList.length)}</b> ${snippetList.length === 1 ? "búsqueda" : "búsquedas"} · <b class="gain">+${num(snippetClicks)}</b> clics posibles</span></div><p>La web ya aparece bien colocada, pero pocas personas hacen clic. El título y la descripción no convencen.</p><dl class="hwl">${legendRow("Qué hace falta", "Reescribir el título y la descripción, sin tocar el resto de la página.")}${legendRow("Esfuerzo", `${dots(1)} bajo`)}${legendRow("Se nota en", "Entre 2 y 4 semanas, en cuanto Google actualiza el resultado.")}</dl></div></div><div class="hwe"><div class="hwi">${dots(1)}<span><b>Esfuerzo bajo</b>Un cambio de título o de descripción: cuestión de minutos.</span></div><div class="hwi">${dots(2)}<span><b>Esfuerzo medio</b>Ampliar o reorganizar una página y enlazarla mejor: unas horas.</span></div><div class="hwi">${dots(3)}<span><b>Esfuerzo alto</b>Crear contenido nuevo o rehacer la página: días de trabajo.</span></div></div><p class="hwn">Las búsquedas están ordenadas por prioridad: primero las que más clics pueden traer con menos trabajo. El esfuerzo es una estimación según el tipo de oportunidad y la posición actual.</p>`;
 
   const maxImpressions = Math.max(...rows.map((row) => row.impressions), 1);
   const maxPotential = Math.max(...rows.map((row) => row.potentialClicks), 1);
@@ -1480,7 +1529,7 @@ function opportunitiesBlock(report: ReportFull): string {
         v: index + 1,
       },
       {
-        h: `${queryLink(row.query)}${row.page ? `<small class="pp">${esc(pathOf(row.page))}</small>` : ""}`,
+        h: `${queryLink(row.query)}${row.page ? `<small class="pp">${pageLink(row.page)}</small>` : ""}`,
         v: row.query,
         cls: "pg",
       },
@@ -1542,7 +1591,7 @@ function opportunitiesBlock(report: ReportFull): string {
     const slug = item.slug?.replace(/^\/+/, "");
     const serp =
       item.metaTitle || item.metaDescription || slug
-        ? `<div class="os"><h5>Cómo se vería en Google</h5>${serpPreview(host, slug ? `https://${host}/${slug}` : null, item.metaTitle || item.title, item.metaDescription ?? "", "Propuesta")}${slug ? `<p class="slg">Dirección sugerida: <b>/${esc(slug)}</b></p>` : ""}</div>`
+        ? `<div class="os"><h5>Cómo se vería en Google</h5>${serpPreview(host, slug ? `https://${host}/${slug}` : null, item.metaTitle || item.title, item.metaDescription ?? "", "Propuesta", false)}${slug ? `<p class="slg">Dirección sugerida: <b>/${esc(slug)}</b></p>` : ""}</div>`
         : "";
     return `<details class="op ct"${index < 2 ? " open" : ""}><summary><span class="rk">${index + 1}</span><span class="ot"><b>${esc(item.title)}</b>${item.target ? `<span class="itg">Apunta a: ${queryLink(item.target)}</span>` : ""}</span><span class="ik2">${esc(item.format || "Contenido")}</span></summary><div class="ob${serp ? " two" : ""}"><div class="oc"><h5>Por qué merece la pena</h5><div class="rich">${paragraphs(item.reason)}</div>${item.intent ? `<h5>Qué debe resolver la página</h5><div class="rich">${paragraphs(item.intent)}</div>` : ""}${outline.length > 0 ? `<h5>Estructura recomendada</h5><ol class="oa">${outline.map((line) => `<li>${inline(line)}</li>`).join("")}</ol>` : ""}${links.length > 0 ? `<h5>Enlazado interno</h5><div class="rich"><p>Para que la nueva página reciba tráfico desde el primer día, enlazar hacia ella desde:</p></div><ul class="lkl">${links.map((url) => `<li>${pageLink(url)}</li>`).join("")}</ul>` : ""}${item.result ? `<h5>Resultado esperado</h5><div class="rich">${paragraphs(item.result)}</div>` : ""}<div class="opg">Guías oficiales de Google: ${GUIDE.helpful} · ${GUIDE.title} · ${GUIDE.url}</div></div>${serp}</div></details>`;
   };
@@ -2332,6 +2381,8 @@ export function renderReportDocument(
         columns(show("tecnico", () => healthBlock(report))),
     },
   ]
+    // A tab the consultant took out does not show at all.
+    .filter((panel) => !hidden.has(`tab:${panel.id}`))
     // A panel with only its analysis and no data behind it is not shown.
     .filter(
       (panel) =>

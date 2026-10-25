@@ -12,12 +12,25 @@ export type Totals = {
   position: number;
 };
 
+/** A page or a search inside a segment, with its own figures. */
+export type SegmentMember = {
+  key: string;
+  clicks: number;
+  prevClicks: number;
+  impressions: number;
+  position: number | null;
+};
+
 export type SegmentLine = {
   label: string;
   clicks: number;
   prevClicks: number;
   impressions: number;
   share: number;
+  /** How many pages or searches the segment holds. */
+  count?: number;
+  /** The biggest of them, so the segment can be opened in the report. */
+  members?: SegmentMember[];
 };
 
 export type QueryMove = {
@@ -237,6 +250,8 @@ export type ReportSnapshot = {
     device: SegmentLine[];
     pageType: SegmentLine[];
     intent: SegmentLine[];
+    /** Brand searches and the rest, with their biggest searches. */
+    brand: SegmentLine[];
   };
   opportunities: OpportunityLine[];
   updates: GoogleUpdate[];
@@ -357,6 +372,95 @@ export const REPORT_SECTIONS = [
 ] as const;
 
 export type SectionId = (typeof REPORT_SECTIONS)[number]["id"];
+
+/** The tabs of the report as the editor lists them: every tab can be taken
+ *  out whole (`tab:<id>` in `hidden`), its analysis text can be hidden on
+ *  its own (`text:<note>`) and so can each block inside it (the block id).
+ *  `note` is the key under which the tab's analysis text is saved. */
+export const REPORT_TABS: {
+  id: string;
+  label: string;
+  note: SectionId | null;
+  blocks: { id: SectionId; label: string }[];
+}[] = [
+  {
+    id: "trafico",
+    label: "Tráfico",
+    note: "evolucion",
+    blocks: [
+      {
+        id: "evolucion",
+        label: "Evolución del tráfico y actualizaciones de Google",
+      },
+      { id: "reparto", label: "De dónde vienen los clics" },
+      { id: "semana", label: "Clics medios por día de la semana" },
+      { id: "discover", label: "Google Discover" },
+    ],
+  },
+  {
+    id: "posiciones",
+    label: "Posicionamiento",
+    note: "posiciones",
+    blocks: [{ id: "posiciones", label: "Búsquedas por tramo de posición" }],
+  },
+  {
+    id: "busquedas",
+    label: "Búsquedas",
+    note: "consultas",
+    blocks: [
+      { id: "marca", label: "Búsquedas de marca" },
+      { id: "consultas", label: "Búsquedas que mueven el tráfico" },
+    ],
+  },
+  {
+    id: "paginas",
+    label: "Páginas",
+    note: "origen",
+    blocks: [
+      { id: "origen", label: "Páginas que reciben y mueven el tráfico" },
+      { id: "diagnostico", label: "Diagnóstico de las páginas que caen (IA)" },
+    ],
+  },
+  {
+    id: "temas",
+    label: "Temas",
+    note: "temas",
+    blocks: [{ id: "temas", label: "Temas con más tráfico orgánico" }],
+  },
+  {
+    id: "oportunidades",
+    label: "Oportunidades",
+    note: "oportunidades",
+    blocks: [
+      {
+        id: "oportunidades",
+        label: "Tabla, plan de acción y contenidos nuevos",
+      },
+      {
+        id: "titulos",
+        label: "Más propuestas de títulos y descripciones (IA)",
+      },
+    ],
+  },
+  {
+    id: "tecnico",
+    label: "Técnico",
+    note: "tecnico",
+    blocks: [
+      {
+        id: "auditoria",
+        label: "Auditoría técnica por tipología (Microaudit)",
+      },
+      { id: "tecnico", label: "Cobertura del sitemap en Google" },
+    ],
+  },
+  {
+    id: "analisis",
+    label: "Conclusiones detalladas",
+    note: null,
+    blocks: [{ id: "hallazgos", label: "Conclusiones del periodo" }],
+  },
+];
 
 export type ReportSummary = {
   id: string;

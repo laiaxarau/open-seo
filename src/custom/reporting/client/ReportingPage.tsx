@@ -26,6 +26,7 @@ import type { ReportSummary } from "@/custom/reporting/types";
 import {
   createClientReport,
   deleteClientReport,
+  getReportPageTypes,
   listClientReports,
 } from "@/serverFunctions/reporting";
 
@@ -166,6 +167,12 @@ export function ReportingPage({ projectId }: { projectId: string }) {
     queryKey: ["client-reports", projectId],
     queryFn: () => listClientReports({ data: { projectId } }),
   });
+  const pageTypes = useQuery({
+    queryKey: ["report-page-types", projectId],
+    queryFn: () => getReportPageTypes({ data: { projectId } }),
+  });
+  const noTypes =
+    pageTypes.isSuccess && !pageTypes.data.some((type) => type.urls.length > 0);
   const [title, setTitle] = useState(defaultTitle);
   const [client, setClient] = useState("");
   const [range, setRange] = useState<PeriodInput["range"]>("last_28_days");
@@ -187,7 +194,9 @@ export function ReportingPage({ projectId }: { projectId: string }) {
         setMessage(
           result.reason === "reconnect"
             ? "La conexión con Google ha caducado: reconéctala en Search Console."
-            : "Este proyecto no tiene Search Console conectado.",
+            : result.reason === "no_types"
+              ? "Antes de crear un informe hay que definir las tipologías de página del proyecto."
+              : "Este proyecto no tiene Search Console conectado.",
         );
         return;
       }
@@ -292,7 +301,7 @@ export function ReportingPage({ projectId }: { projectId: string }) {
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <Button
-              disabled={create.isPending}
+              disabled={create.isPending || noTypes}
               onClick={() => {
                 setMessage(null);
                 create.mutate();
@@ -305,6 +314,25 @@ export function ReportingPage({ projectId }: { projectId: string }) {
               <p className="text-sm text-destructive">{message}</p>
             ) : null}
           </div>
+          {noTypes ? (
+            <div className="rounded-lg border border-border bg-muted/50 p-3 text-sm">
+              <p className="font-medium">
+                Primero define las tipologías de página
+              </p>
+              <p className="text-muted-foreground">
+                El análisis técnico se hace sobre páginas de ejemplo de cada
+                tipología (Home, Categoría, Producto, Post…). Defínelas en el
+                Contexto del proyecto y vuelve aquí.{" "}
+                <Link
+                  to="/p/$projectId/context"
+                  params={{ projectId }}
+                  className="font-medium text-foreground underline underline-offset-2"
+                >
+                  Ir al Contexto del proyecto
+                </Link>
+              </p>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 

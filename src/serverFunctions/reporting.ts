@@ -33,7 +33,7 @@ const reportInput = projectInput.extend({ reportId: z.string().min(1) });
 const notesSchema = z.object({
   message: z.string().max(4000),
   sectionNotes: z.record(z.string(), z.string().max(2000)),
-  hidden: z.array(z.string().max(40)).max(20),
+  hidden: z.array(z.string().max(40)).max(80),
   nextSteps: z.string().max(4000),
   diagnoses: z
     .array(
@@ -105,6 +105,11 @@ export const createClientReport = createServerFn({ method: "POST" })
     }),
   )
   .handler(async ({ data, context }) => {
+    // The technical analysis needs example pages: no report without them.
+    const types = await getPageTypes(context.projectId);
+    if (!types.some((type) => type.urls.length > 0)) {
+      return { ok: false as const, reason: "no_types" as const };
+    }
     const built = await buildReportSnapshot(context.projectId, data.period);
     if (!built.ok) return { ok: false as const, reason: built.reason };
     const report = await insertReport({

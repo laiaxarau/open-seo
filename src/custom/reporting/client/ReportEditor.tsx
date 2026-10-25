@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import {
   ArrowLeft,
+  ChevronDown,
   ExternalLink,
   Link2,
   Sparkles,
@@ -26,8 +27,12 @@ import { AuditCard, auditPageTypes } from "@/custom/reporting/client/AuditCard";
 import { pageTypesKey } from "@/custom/reporting/client/PageTypesSection";
 import { needsNewAudit } from "@/custom/reporting/auditQuality";
 import { publicUrl } from "@/custom/reporting/client/ReportingPage";
+import { RichTextField } from "@/custom/reporting/client/RichTextField";
+import { renderReportDocument } from "@/custom/reporting/render";
+import { CARLOS, signerFor, type Signer } from "@/custom/reporting/signers";
 import {
   REPORT_SECTIONS,
+  REPORT_TABS,
   type ReportFull,
   type ReportNotes,
 } from "@/custom/reporting/types";
@@ -43,6 +48,17 @@ import {
 } from "@/serverFunctions/reporting";
 
 const NEWLINE = String.fromCharCode(10);
+/** Notes saved under these keys are the analysis text of a tab, not a note
+ *  under a block. */
+const PANEL_NOTE_KEYS = new Set([
+  "evolucion",
+  "posiciones",
+  "consultas",
+  "origen",
+  "temas",
+  "oportunidades",
+  "tecnico",
+]);
 const euroFormat = new Intl.NumberFormat("es-ES", {
   style: "currency",
   currency: "EUR",
@@ -266,6 +282,59 @@ function Editor({
     return () => window.removeEventListener("beforeunload", handler);
   }, [dirty]);
 
+  const [openTabs, setOpenTabs] = useState<Record<string, boolean>>({});
+  // The preview is drawn here with the text as it is being edited, so every
+  // switch and every change shows at once (a short pause after typing).
+  const [signer, setSigner] = useState<Signer>(CARLOS);
+  useEffect(() => {
+    void signerFor(report.createdBy).then(setSigner);
+  }, [report.createdBy]);
+  const [settled, setSettled] = useState({ notes, title, client });
+  useEffect(() => {
+    const timer = setTimeout(() => setSettled({ notes, title, client }), 600);
+    return () => clearTimeout(timer);
+  }, [notes, title, client]);
+  const previewHtml = useMemo(() => {
+    try {
+      return renderReportDocument(
+        {
+          ...report,
+          title: settled.title.trim() || report.title,
+          clientName: settled.client.trim() || null,
+          notes: settled.notes,
+        },
+        "preview",
+        signer,
+      );
+    } catch {
+      return null;
+    }
+  }, [report, settled, signer]);
+  const frame = useRef<HTMLIFrameElement>(null);
+  const lastView = useRef({ y: 0, tab: "" });
+  // Remember where the reader was just before the page is replaced.
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const view = frame.current?.contentWindow;
+      if (!view) return;
+      lastView.current = {
+        y: view.scrollY,
+        tab: view.location.hash.replace("#", ""),
+      };
+    }, 400);
+    return () => clearInterval(timer);
+  }, []);
+  const restoreFrame = () => {
+    const view = frame.current?.contentWindow;
+    if (!view) return;
+    const { y, tab } = lastView.current;
+    if (tab) {
+      view.document.querySelector<HTMLElement>(`[data-tab="${tab}"]`)?.click();
+    }
+    view.document.documentElement.style.scrollBehavior = "auto";
+    view.scrollTo(0, y);
+  };
+
   const hidden = new Set(notes.hidden);
   const toggleSection = (id: string, visible: boolean) =>
     change({
@@ -467,11 +536,11 @@ function Editor({
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="ed-message">Resumen ejecutivo</Label>
-                <Textarea
+                <RichTextField
                   id="ed-message"
                   rows={8}
                   value={notes.message}
-                  onChange={(event) => change({ message: event.target.value })}
+                  onChange={(value) => change({ message: value })}
                   placeholder="Dos párrafos: cómo ha ido el periodo y por qué, y qué hay que hacer ahora. Sale al principio del informe. Si lo dejas vacío, el informe no lleva resumen."
                 />
               </div>
@@ -489,46 +558,152 @@ function Editor({
 
           <Card>
             <CardHeader>
-              <CardTitle>Secciones y notas</CardTitle>
+              <CardTitle>Qué sale en el informe</CardTitle>
               <p className="text-xs text-muted-foreground">
-                Activa o quita secciones. El texto de las pestañas (Tráfico,
-                Posicionamiento, Búsquedas, Páginas, Temas, Oportunidades y
-                Técnico) es el análisis que se muestra al abrir cada una.
+                Cada pestaña se puede quitar entera con su interruptor. Dentro,
+                cada bloque y el texto de análisis se muestran u ocultan por
+                separado. Lo que quitas no se borra: solo deja de verse en el
+                informe, y puedes volver a activarlo.
               </p>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {REPORT_SECTIONS.map((section) => {
-                const visible = !hidden.has(section.id);
+            <CardContent className="space-y-3">
+              {REPORT_TABS.map((tab) => {
+                const tabHidden = hidden.has(`tab:${tab.id}`);
+                const open = Boolean(openTabs[tab.id]) && !tabHidden;
+                const shownBlocks = tab.blocks.filter(
+                  (block) => !hidden.has(block.id),
+                ).length;
+                const textHidden = tab.note
+                  ? hidden.has(`text:${tab.note}`)
+                  : false;
                 return (
-                  <div key={section.id} className="space-y-2">
-                    <div className="flex items-center justify-between gap-3">
-                      <Label>{section.label}</Label>
-                      <Switch
-                        checked={visible}
-                        onCheckedChange={(checked) =>
-                          toggleSection(section.id, checked)
+                  <div key={tab.id} className="rounded-xl border border-border">
+                    <div className="flex items-center gap-3 p-3">
+                      <button
+                        type="button"
+                        className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                        onClick={() =>
+                          setOpenTabs((current) => ({
+                            ...current,
+                            [tab.id]: !current[tab.id],
+                          }))
                         }
-                        aria-label={`Mostrar ${section.label}`}
+                        disabled={tabHidden}
+                        aria-expanded={open}
+                      >
+                        <ChevronDown
+                          className={`size-4 shrink-0 text-muted-foreground transition-transform ${open ? "" : "-rotate-90"}`}
+                          aria-hidden
+                        />
+                        <span className="min-w-0">
+                          <span className="block text-sm font-semibold">
+                            Pestaña «{tab.label}»
+                          </span>
+                          <span className="block text-xs text-muted-foreground">
+                            {tabHidden
+                              ? "Quitada: no aparece en el informe."
+                              : `${shownBlocks} de ${tab.blocks.length} bloques visibles${tab.note ? (textHidden ? " · sin texto de análisis" : " · con texto de análisis") : ""}`}
+                          </span>
+                        </span>
+                      </button>
+                      <Switch
+                        checked={!tabHidden}
+                        onCheckedChange={(checked) =>
+                          toggleSection(`tab:${tab.id}`, checked)
+                        }
+                        aria-label={`Mostrar la pestaña ${tab.label}`}
                       />
                     </div>
-                    {visible && section.id !== "proximos" ? (
-                      <Textarea
-                        rows={2}
-                        value={notes.sectionNotes[section.id] ?? ""}
-                        onChange={(event) =>
-                          change({
-                            sectionNotes: {
-                              ...notes.sectionNotes,
-                              [section.id]: event.target.value,
-                            },
-                          })
-                        }
-                        placeholder="Nota opcional bajo esta sección"
-                      />
+                    {open ? (
+                      <div className="space-y-4 border-t border-border p-3">
+                        {tab.note ? (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between gap-3">
+                              <Label>
+                                Texto de análisis (arriba de la pestaña)
+                              </Label>
+                              <Switch
+                                checked={!textHidden}
+                                onCheckedChange={(checked) =>
+                                  toggleSection(`text:${tab.note}`, checked)
+                                }
+                                aria-label={`Mostrar el texto de análisis de ${tab.label}`}
+                              />
+                            </div>
+                            {!textHidden ? (
+                              <RichTextField
+                                rows={5}
+                                value={notes.sectionNotes[tab.note] ?? ""}
+                                onChange={(value) =>
+                                  change({
+                                    sectionNotes: {
+                                      ...notes.sectionNotes,
+                                      [tab.note as string]: value,
+                                    },
+                                  })
+                                }
+                                placeholder="Qué ha pasado en esta pestaña, por qué y qué implica."
+                              />
+                            ) : null}
+                          </div>
+                        ) : null}
+                        {tab.blocks.map((block) => {
+                          const visible = !hidden.has(block.id);
+                          const hasNote = !PANEL_NOTE_KEYS.has(block.id);
+                          return (
+                            <div key={block.id} className="space-y-2">
+                              <div className="flex items-center justify-between gap-3">
+                                <Label>Bloque: {block.label}</Label>
+                                <Switch
+                                  checked={visible}
+                                  onCheckedChange={(checked) =>
+                                    toggleSection(block.id, checked)
+                                  }
+                                  aria-label={`Mostrar el bloque ${block.label}`}
+                                />
+                              </div>
+                              {visible && hasNote ? (
+                                <RichTextField
+                                  rows={3}
+                                  value={notes.sectionNotes[block.id] ?? ""}
+                                  onChange={(value) =>
+                                    change({
+                                      sectionNotes: {
+                                        ...notes.sectionNotes,
+                                        [block.id]: value,
+                                      },
+                                    })
+                                  }
+                                  placeholder="Nota opcional bajo este bloque"
+                                />
+                              ) : null}
+                            </div>
+                          );
+                        })}
+                      </div>
                     ) : null}
                   </div>
                 );
               })}
+              <div className="rounded-xl border border-border p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold">
+                      Hoja de ruta (al final del informe)
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Los pasos se editan más abajo, en «Próximos pasos».
+                    </p>
+                  </div>
+                  <Switch
+                    checked={!hidden.has("proximos")}
+                    onCheckedChange={(checked) =>
+                      toggleSection("proximos", checked)
+                    }
+                    aria-label="Mostrar la hoja de ruta"
+                  />
+                </div>
+              </div>
             </CardContent>
           </Card>
 
@@ -770,10 +945,10 @@ function Editor({
               </p>
             </CardHeader>
             <CardContent>
-              <Textarea
-                rows={4}
+              <RichTextField
+                rows={8}
                 value={notes.nextSteps}
-                onChange={(event) => change({ nextSteps: event.target.value })}
+                onChange={(value) => change({ nextSteps: value })}
               />
             </CardContent>
           </Card>
@@ -794,16 +969,20 @@ function Editor({
             </Button>
           </div>
           <iframe
-            key={`${report.id}-${version}-${report.updatedAt}`}
+            ref={frame}
             title="Vista previa del informe"
-            src={`/rv/${report.id}`}
+            {...(previewHtml
+              ? { srcDoc: previewHtml }
+              : { src: `/rv/${report.id}` })}
+            sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+            onLoad={restoreFrame}
             className="h-[calc(100vh-7rem)] w-full rounded-xl border border-border bg-card"
           />
-          {dirty ? (
-            <p className="text-xs text-warning">
-              Hay cambios sin guardar: guarda para verlos en la vista previa.
-            </p>
-          ) : null}
+          <p className="text-xs text-muted-foreground">
+            {dirty
+              ? "La vista previa se actualiza mientras escribes. Falta guardar para conservar los cambios."
+              : "La vista previa se actualiza mientras escribes."}
+          </p>
         </div>
       </div>
     </div>

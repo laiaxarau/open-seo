@@ -63,12 +63,22 @@ function changeLine(row: {
   };
 }
 
+const MEMBERS_PER_SEGMENT = 12;
+
 function segmentLines(
   segments: {
     label: string;
     clicks: number;
     prevClicks: number;
     impressions: number;
+    items?: number;
+    members?: {
+      key: string;
+      clicks: number;
+      prevClicks: number;
+      impressions: number;
+      position: number | null;
+    }[];
   }[],
 ): SegmentLine[] {
   const total = segments.reduce((sum, item) => sum + item.clicks, 0);
@@ -78,6 +88,18 @@ function segmentLines(
     prevClicks: item.prevClicks,
     impressions: item.impressions,
     share: total > 0 ? item.clicks / total : 0,
+    ...(item.members && item.members.length > 0
+      ? {
+          count: item.items ?? item.members.length,
+          members: item.members.slice(0, MEMBERS_PER_SEGMENT).map((member) => ({
+            key: member.key,
+            clicks: member.clicks,
+            prevClicks: member.prevClicks,
+            impressions: member.impressions,
+            position: member.position,
+          })),
+        }
+      : {}),
   }));
 }
 
@@ -266,9 +288,32 @@ export async function buildReportSnapshot(
       clicks: Math.max(row.clicks, row.prevClicks),
     })),
   });
+  type Member = {
+    key: string;
+    clicks: number;
+    prevClicks: number;
+    impressions: number;
+    position: number | null;
+  };
+  const memberOfRow = (row: (typeof queryChanges)[number]): Member => ({
+    key: row.key,
+    clicks: row.clicks,
+    prevClicks: row.prevClicks,
+    impressions: row.impressions,
+    position: row.position,
+  });
+  const byClicks = (a: Member, b: Member) =>
+    b.clicks - a.clicks || b.prevClicks - a.prevClicks;
   const intentTotals = new Map<
     string,
-    { label: string; clicks: number; prevClicks: number; impressions: number }
+    {
+      label: string;
+      clicks: number;
+      prevClicks: number;
+      impressions: number;
+      items: number;
+      members: Member[];
+    }
   >();
   for (const row of queryChanges) {
     const label = intents.get(row.key) ?? "Informativa";
@@ -277,15 +322,42 @@ export async function buildReportSnapshot(
       clicks: 0,
       prevClicks: 0,
       impressions: 0,
+      items: 0,
+      members: [] as Member[],
     };
     entry.clicks += row.clicks;
     entry.prevClicks += row.prevClicks;
     entry.impressions += row.impressions;
+    entry.items += 1;
+    entry.members.push(memberOfRow(row));
     intentTotals.set(label, entry);
   }
   const intentLines = segmentLines(
-    [...intentTotals.values()].sort((a, b) => b.clicks - a.clicks),
+    [...intentTotals.values()]
+      .sort((a, b) => b.clicks - a.clicks)
+      .map((entry) => ({
+        ...entry,
+        members: entry.members.sort(byClicks),
+      })),
   );
+  // Brand and the rest, each with its biggest searches.
+  const brandSegment = (label: string, brand: boolean) => {
+    const rows = queryChanges.filter(
+      (row) => isBrandQuery(row.key, tokens) === brand,
+    );
+    return {
+      label,
+      clicks: rows.reduce((sum, row) => sum + row.clicks, 0),
+      prevClicks: rows.reduce((sum, row) => sum + row.prevClicks, 0),
+      impressions: rows.reduce((sum, row) => sum + row.impressions, 0),
+      items: rows.length,
+      members: rows.map(memberOfRow).sort(byClicks),
+    };
+  };
+  const brandLines = segmentLines([
+    brandSegment("Búsquedas de marca", true),
+    brandSegment("Resto de búsquedas", false),
+  ]);
 
   // What the brand searches did: impressions, average position and how many.
   const brandStats = (() => {
@@ -412,8 +484,11 @@ export async function buildReportSnapshot(
         left: moves(band.left),
       })),
       segments: {
-        device: segmentLines(report.segments.device),
+        device: segmentLines(
+          report.segments.device.map(({ members: _members, ...rest }) => rest),
+        ),
         pageType: segmentLines(report.segments.pageType),
+        brand: brandLines,
         intent:
           intentLines.length > 0
             ? intentLines

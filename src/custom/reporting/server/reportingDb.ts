@@ -145,6 +145,7 @@ export function normalizeSnapshot(
       device: raw.segments?.device ?? [],
       pageType: raw.segments?.pageType ?? [],
       intent: raw.segments?.intent ?? [],
+      brand: raw.segments?.brand ?? [],
     },
     opportunities: raw.opportunities ?? [],
     updates: raw.updates ?? [],
