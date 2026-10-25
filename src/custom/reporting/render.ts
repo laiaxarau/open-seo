@@ -2081,11 +2081,16 @@ function discoverBlock(report: ReportFull): string {
 const shortPath = (path: string) =>
   path.length > 38 ? `${path.slice(0, 35)}…` : path;
 
-type Step = { title: string; why: string; how: string[]; impact: string };
+export type Step = {
+  title: string;
+  why: string;
+  how: string[];
+  impact: string;
+};
 
 /** Without AI text the roadmap is built from the data: the few moves that can
  *  change the figures, each with why, how and what to expect. */
-function suggestedSteps(report: ReportFull): Step[] {
+export function suggestedSteps(report: ReportFull): Step[] {
   const { snapshot } = report;
   const steps: Step[] = [];
   const top = [...snapshot.opportunities]
@@ -2170,7 +2175,7 @@ function suggestedSteps(report: ReportFull): Step[] {
 /** Reads the roadmap text. Each step is a block separated by a blank line: the
  *  first line is the action, then "Por qué:", "Cómo:" (actions separated by
  *  ";") and "Impacto:". A step on a single line may use "acción — motivo". */
-function parseSteps(text: string): Step[] {
+export function parseSteps(text: string): Step[] {
   const labelled = /^(por qu[eé]|c[oó]mo|impacto)/im.test(text);
   const blocks =
     /\n\s*\n/.test(text) || labelled ? text.split(/\n\s*\n/) : text.split("\n");
@@ -2211,16 +2216,28 @@ function stepHtml(step: Step, index: number): string {
   return `<li class="st"><span class="sn">${String(index + 1).padStart(2, "0")}</span><div class="sc"><b class="stt">${inline(capital(step.title))}</b>${step.why ? `<p class="sw">${inline(capital(step.why))}</p>` : ""}${step.how.length > 0 ? `<ul class="sh">${step.how.map((item) => `<li>${inline(capital(item))}</li>`).join("")}</ul>` : ""}${step.impact ? `<p class="si"><b>Impacto esperado</b>${inline(capital(step.impact))}</p>` : ""}</div></li>`;
 }
 
-function closing(report: ReportFull): string {
+function closing(
+  report: ReportFull,
+  index: number,
+  client: string,
+  period: string,
+): string {
   const typed = parseSteps(report.notes.nextSteps);
   const steps = typed.length > 0 ? typed : suggestedSteps(report);
   const note = report.notes.sectionNotes.proximos?.trim();
-  return `<footer class="end" id="proximos"><div class="wrap">
+  const cover = coverHtml(
+    index,
+    "Hoja de ruta",
+    "Las acciones que más resultado darán en el próximo periodo, ordenadas por prioridad.",
+    client,
+    period,
+  );
+  return `${cover}<table class="pgwrap pgpanel">${PAGE_SPACERS}<tbody><tr><td><footer class="end" id="proximos"><div class="wrap">
 <div class="kick">Próximos pasos</div><h2>Hoja de ruta para el próximo periodo</h2>
 <ol class="steps">${steps.map(stepHtml).join("")}</ol>
 ${note ? `<div class="note" style="background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.16);color:#f6f6f6"><b style="color:#ffb3c0">Nota de ${esc(noteAuthor)}</b>${paragraphs(note)}</div>` : ""}
 <div class="foot"><span class="fm">${LOGO_MARK_LIGHT}</span><span>Informe generado el ${day(report.snapshot.generatedAt.slice(0, 10))} con datos de Google Search Console · <a href="https://carlosortega.page/contacto/" target="_blank" rel="noopener noreferrer">carlosortega.page</a></span></div>
-</div></footer>`;
+</div></footer></td></tr></tbody></table>`;
 }
 
 // ----------------------------------------------------------------- page
@@ -2244,6 +2261,17 @@ const TAB_ORDER = [
  *  its header and footer on each page. */
 const PAGE_SPACERS =
   '<thead><tr><td><div class="pgsp h"></div></td></tr></thead><tfoot><tr><td><div class="pgsp f"></div></td></tr></tfoot>';
+
+/** The cover page that opens a section of the printed report. */
+function coverHtml(
+  index: number,
+  label: string,
+  lead: string,
+  client: string,
+  period: string,
+): string {
+  return `<section class="scover" aria-hidden="true"><div class="scb"><div class="scm">${LOGO_MARK_LIGHT}<span>Informe SEO · ${esc(client)}</span></div><div class="scn">${String(index).padStart(2, "0")}</div><h2>${esc(label)}</h2><div class="scr"></div><p>${esc(lead)}</p><div class="scp">${esc(period)}</div></div></section>`;
+}
 
 /** What each section is about, for the cover page that opens it in print. */
 const SECTION_LEAD: Record<string, string> = {
@@ -2400,7 +2428,13 @@ export function renderReportDocument(
     )
     .join("");
   const sectionCover = (panel: Panel, index: number) =>
-    `<section class="scover" aria-hidden="true"><div class="scb"><div class="scm">${LOGO_MARK_LIGHT}<span>Informe SEO · ${esc(report.clientName?.trim() || host)}</span></div><div class="scn">${String(index + 1).padStart(2, "0")}</div><h2>${esc(panel.label)}</h2><div class="scr"></div><p>${esc(SECTION_LEAD[panel.id] ?? "")}</p><div class="scp">${esc(rangeShort(snapshot.range.startDate, snapshot.range.endDate))}</div></div></section>`;
+    coverHtml(
+      index + 1,
+      panel.label,
+      SECTION_LEAD[panel.id] ?? "",
+      report.clientName?.trim() || host,
+      rangeShort(snapshot.range.startDate, snapshot.range.endDate),
+    );
   const panelHtml = panels
     .map(
       (panel, index) =>
@@ -2437,7 +2471,7 @@ ${hero(report, host)}
 ${summaryHtml ? `<table class="pgwrap">${PAGE_SPACERS}<tbody><tr><td>${summaryHtml}</td></tr></tbody></table>` : ""}
 <div class="tabsbar" id="tabs"><div class="wrap"><div class="tabs2" role="tablist">${tabButtons}</div></div></div>
 <main class="wrap panels">${panelHtml}</main>
-${hidden.has("proximos") ? "" : closing(report)}
+${hidden.has("proximos") ? "" : closing(report, panels.length + 1, clientName, rangeShort(snapshot.range.startDate, snapshot.range.endDate))}
 <button class="totop" id="totop" type="button" aria-label="Volver arriba"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
 <script type="application/json" id="report-data">${jsonForScript(data)}</script>
 <script>${REPORT_SCRIPT}</script>

@@ -994,4 +994,28 @@ details.op>summary{break-after:avoid;padding:8px 0 6px}
 .mxscore .spill{min-width:0;padding:2px 5px;font-size:8.5pt}
 .mxscore .spill i{display:none}
 }
+/* ---- v26: the roadmap in print follows the other sections ---- */
+@media print{
+.end{background:#fff!important;color:var(--ink)!important;min-height:0!important;margin:0!important;padding:0!important;overflow:visible;break-before:auto!important}
+.end:before{display:none!important}
+.end .kick{display:block;margin:0 0 14px;padding-bottom:8px;border-bottom:2px solid var(--ink);font-size:10.5pt;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--red)}
+.end h2{color:var(--ink)!important;font-size:14pt;margin:0 0 4mm}
+.steps{max-width:none;display:block}
+.steps li.st{display:grid;grid-template-columns:34px minmax(0,1fr);padding:12px 16px;margin:0 0 9px;border:1px solid var(--line);border-radius:10px;background:#fff;break-inside:avoid}
+.steps li .sn{font-size:13pt;color:var(--red)}
+.steps .stt{color:var(--ink);font-size:11.5pt}
+.steps .sw,.steps .sh{color:var(--ink2);font-size:9.5pt}
+.steps .si{color:var(--ink);font-size:9.5pt}
+.steps .si b{color:var(--red)}
+.steps mark.ac{color:var(--red)}
+.steps strong{color:var(--ink)}
+.steps .xl{color:var(--red);border-bottom-color:rgba(241,28,65,.35)}
+.end .note{background:#fff!important;border-color:var(--line)!important;color:var(--ink)!important}
+.end .note b{color:var(--red)!important}
+.end .note p{color:var(--ink2)}
+.end .note strong{color:var(--ink)}
+.end .foot{margin-top:8mm;padding:5mm 0 0;border-top:1px solid var(--line);color:var(--muted);font-size:8pt}
+.end .fm{display:none}
+.end .foot a{color:var(--red)}
+}
 `;
