@@ -2042,7 +2042,7 @@ function auditsBlock(report: ReportFull, missing: string[] = []): string {
     "auditoria",
     "Auditoría técnica por tipología de página",
     `Microaudit ha revisado ${num(audits.length)} ${audits.length === 1 ? "página" : "páginas"} de ejemplo con más de 90 comprobaciones de SEO y de SEO para asistentes de IA. Las páginas de una misma tipología se analizan juntas, como la media de esa plantilla. Cada nota va de 0 a 100 (100 es que no hay nada que corregir) y una categoría con algún fallo no pasa de 35 hasta corregirlo.`,
-    `${summary}<div class="sheet"><h3>Nota global de cada tipología</h3><p class="gsn">Nota media sobre 100 de cada tipología de página.</p>${typeCards}<h3 class="gsh">Nota por categoría</h3>${matrix}</div><div class="sheet" style="margin-top:18px">${panels}</div>`,
+    `${summary}<div class="sheet"><h3>Nota global de cada tipología</h3><p class="gsn">Nota media sobre 100 de cada tipología de página.</p>${typeCards}<h3 class="gsh">Nota por categoría</h3><div class="mxscore">${matrix}</div></div><div class="sheet" style="margin-top:18px">${panels}</div>`,
   );
 }
 

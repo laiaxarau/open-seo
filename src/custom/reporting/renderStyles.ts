@@ -980,4 +980,18 @@ details.op>summary{break-after:avoid;padding:8px 0 6px}
 .oa li,.serp,.os .sl,.opg,.rich p{break-inside:avoid}
 .os{margin-top:3mm}
 }
+/* ---- v25: the score table with many page types ---- */
+.mxscore .qt.sm th{white-space:normal;overflow-wrap:anywhere;padding:10px 8px;letter-spacing:.06em;text-align:center}
+.mxscore .qt.sm th:first-child,.mxscore .qt.sm td:first-child{text-align:left;width:26%}
+.mxscore .qt.sm td{padding:9px 8px}
+.mxscore .spill{min-width:62px;padding:4px 8px;font-size:15px}
+@media print{
+.mxscore .qt{table-layout:fixed;width:100%}
+.mxscore .qt.sm th{white-space:normal;overflow-wrap:anywhere;padding:6px 3px;font-size:7pt;letter-spacing:.02em;text-align:center}
+.mxscore .qt.sm td{padding:5px 3px}
+.mxscore .qt th:first-child,.mxscore .qt td:first-child{width:24%;text-align:left}
+.mxscore .qt th span:after{content:none!important}
+.mxscore .spill{min-width:0;padding:2px 5px;font-size:8.5pt}
+.mxscore .spill i{display:none}
+}
 `;
