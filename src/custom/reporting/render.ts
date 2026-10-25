@@ -403,7 +403,7 @@ function dataTable(
     rows.length > PRINT_ROWS
       ? `<p class="onlyprint">Se muestran las ${PRINT_ROWS} primeras de ${num(rows.length)}. La lista completa está en la versión web del informe.</p>`
       : "";
-  return `<div class="tw">${tools}<div class="tbox${full ? " full" : ""}"><table class="qt sm sortable"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>${more}</div>`;
+  return `<div class="tw${rows.length <= 8 ? " short" : ""}">${tools}<div class="tbox${full ? " full" : ""}"><table class="qt sm sortable"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>${more}</div>`;
 }
 
 const ctr = (clicks: number, impressions: number) =>

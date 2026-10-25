@@ -203,7 +203,7 @@ export const REPORT_SCRIPT = `
       var t=parseFloat(n.getAttribute("data-count"));var k=n.getAttribute("data-kind");
       if(!isNaN(t))n.textContent=k==="pct"?dec(t)+" %":(k==="dec"?dec(t):grp(t));
     });
-    each(document.querySelectorAll("details"),function(d){d.open=true;});
+    each(document.querySelectorAll("details:not(.mxd)"),function(d){d.open=true;});
     printing=true;draw();
   });
   window.addEventListener("afterprint",function(){printing=false;draw();});

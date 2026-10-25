@@ -953,4 +953,31 @@ table.mbt{width:100%;border-collapse:collapse;font-size:12.5px}
 .mxo{margin:8px 6px 0;font-size:12px;color:var(--muted)}
 @media screen and (max-width:560px){.mxl{overflow-x:auto}}
 @media print{.mxl{padding:6px 8px}.mbt{font-size:7.5pt}.mbt tbody tr:nth-child(n+6){display:none}}
+/* ---- v23: final PDF review ---- */
+@media print{
+/* covers: exactly one page, whatever the paper */
+.hero{height:296.8mm!important;min-height:100vh!important;margin:0}
+.scover{height:296.8mm;min-height:100vh;margin-top:0;margin-bottom:0}
+.mxl{display:none!important}
+.mxd .mxn:before{display:none}
+/* every table has its frame, and a long one may split between pages */
+.tbox,.tbox.full{border:1px solid var(--line)!important;border-radius:10px;overflow:hidden!important;background:#fff}
+.qt.sm th{background:var(--soft);border-bottom:1px solid var(--line)}
+.tw{break-inside:auto!important}
+.tw.short{break-inside:avoid!important}
+.mbt{border:1px solid var(--line);border-radius:8px}
+/* the topic cards flow in two columns instead of a grid that leaves gaps */
+.topics{display:flex!important;flex-wrap:wrap;gap:10px;align-items:stretch}
+.topics>.topic{flex:0 0 calc(50% - 5px);width:calc(50% - 5px);margin:0;break-inside:avoid}
+}
+/* ---- v24: opportunity cards flow across pages instead of leaving gaps ---- */
+@media print{
+.lead{break-after:avoid}
+details.op{break-inside:auto!important;border:0;border-top:1.5px solid var(--ink);border-radius:0;background:none;margin:0 0 5mm;overflow:visible}
+details.op>summary{break-after:avoid;padding:8px 0 6px}
+.ob,.ob.two{display:block;padding:2px 0 4px}
+.ob h5{break-after:avoid}
+.oa li,.serp,.os .sl,.opg,.rich p{break-inside:avoid}
+.os{margin-top:3mm}
+}
 `;
