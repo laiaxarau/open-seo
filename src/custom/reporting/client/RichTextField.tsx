@@ -33,7 +33,8 @@ export function RichTextField({
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const range = useRef({ start: 0, end: 0 });
-  const [preview, setPreview] = useState(false);
+  const [preview, setPreview] = useState(value.trim().length > 0);
+  const focusEditor = useRef(false);
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
 
@@ -209,7 +210,21 @@ export function RichTextField({
       ) : null}
       {preview ? (
         <div
-          className={PREVIEW_CLASSES}
+          className={`${PREVIEW_CLASSES} cursor-text`}
+          title="Pulsa para editar el texto"
+          role="button"
+          tabIndex={0}
+          onClick={(event) => {
+            if ((event.target as HTMLElement).closest("a")) return;
+            focusEditor.current = true;
+            setPreview(false);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              focusEditor.current = true;
+              setPreview(false);
+            }
+          }}
           // The text is escaped by the report's own renderer first.
           dangerouslySetInnerHTML={{
             __html: value.trim()
@@ -219,7 +234,16 @@ export function RichTextField({
         />
       ) : (
         <Textarea
-          ref={ref}
+          ref={(element) => {
+            ref.current = element;
+            if (element && focusEditor.current) {
+              focusEditor.current = false;
+              element.focus();
+            }
+          }}
+          onBlur={() => {
+            if (!linkOpen && value.trim()) setPreview(true);
+          }}
           id={id}
           rows={rows}
           value={value}
