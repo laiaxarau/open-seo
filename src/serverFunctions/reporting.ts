@@ -125,17 +125,26 @@ export const createClientReport = createServerFn({ method: "POST" })
     if (!types.some((type) => type.urls.length > 0)) {
       return { ok: false as const, reason: "no_types" as const };
     }
-    const built = await buildReportSnapshot(context.projectId, data.period);
-    if (!built.ok) return { ok: false as const, reason: built.reason };
-    const report = await insertReport({
-      projectId: context.projectId,
-      title: data.title,
-      clientName: data.clientName?.trim() || null,
-      createdBy: context.userEmail,
-      snapshot: built.snapshot,
-      notes: EMPTY_NOTES,
-    });
-    return { ok: true as const, reportId: report.id };
+    try {
+      const built = await buildReportSnapshot(context.projectId, data.period);
+      if (!built.ok) return { ok: false as const, reason: built.reason };
+      const report = await insertReport({
+        projectId: context.projectId,
+        title: data.title,
+        clientName: data.clientName?.trim() || null,
+        createdBy: context.userEmail,
+        snapshot: built.snapshot,
+        notes: EMPTY_NOTES,
+      });
+      return { ok: true as const, reportId: report.id };
+    } catch (error) {
+      // Say what failed instead of a generic message, so it can be fixed.
+      console.error("[report-create] failed", context.projectId, error);
+      const detail = (error instanceof Error ? error.message : String(error))
+        .replace(/\s+/g, " ")
+        .slice(0, 220);
+      return { ok: false as const, reason: "error" as const, detail };
+    }
   });
 
 export const getClientReport = createServerFn({ method: "POST" })

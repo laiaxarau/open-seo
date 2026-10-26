@@ -199,7 +199,9 @@ export function ReportingPage({ projectId }: { projectId: string }) {
             ? "La conexión con Google ha caducado: reconéctala en Search Console."
             : result.reason === "no_types"
               ? "Antes de crear un informe hay que definir las tipologías de página del proyecto."
-              : "Este proyecto no tiene Search Console conectado.",
+              : result.reason === "error"
+                ? `No se pudo generar el informe: ${result.detail}`
+                : "Este proyecto no tiene Search Console conectado.",
         );
         return;
       }
