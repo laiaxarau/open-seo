@@ -452,7 +452,7 @@ export async function buildReportSnapshot(
       pageWinners: report.pageChanges.winners.slice(0, 10).map(changeLine),
       pageLosers: report.pageChanges.losers.slice(0, 10).map(changeLine),
       queryWinners: report.queryChanges.winners.slice(0, 10).map(changeLine),
-      queryLosers: report.queryChanges.losers.slice(0, 10).map(changeLine),
+      queryLosers: report.queryChanges.losers.slice(0, 30).map(changeLine),
       newQueries: report.newAndLostFull.newCount,
       lostQueries: report.newAndLostFull.lostCount,
       newQueriesList: report.newAndLostFull.newQueries.map((row) => ({
@@ -589,6 +589,7 @@ export async function buildReportSnapshot(
                   prevClicks: row.prevClicks,
                 })),
               sections: segmentLines(discoverReport.pageTypes),
+              topics: segmentLines(discoverReport.topics),
             }
           : null,
     },

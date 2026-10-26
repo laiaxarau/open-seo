@@ -775,9 +775,30 @@ const INSIGHT_TAB: Record<string, string> = {
   health: "tecnico",
 };
 
+/** The block inside that tab where the conclusion is explained. */
+const INSIGHT_BLOCK: Record<string, string> = {
+  traffic: "evolucion",
+  update: "evolucion",
+  source: "reparto",
+  weekday: "semana",
+  discover: "discover",
+  serp: "serp",
+  top3: "posiciones",
+  queries: "consultas",
+  brand: "marca",
+  winner: "origen",
+  loser: "origen",
+  concentration: "origen",
+  mobile: "reparto",
+  device: "reparto",
+  topics: "temas",
+  opportunities: "oportunidades",
+  health: "tecnico",
+};
+
 const goLink = (item: Insight) =>
   INSIGHT_TAB[item.id]
-    ? `<a class="go" href="#tabs" data-go="${INSIGHT_TAB[item.id]}">Ver el detalle →</a>`
+    ? `<a class="go" href="#tabs" data-go="${INSIGHT_TAB[item.id]}"${INSIGHT_BLOCK[item.id] ? ` data-blk="b-${INSIGHT_BLOCK[item.id]}"` : ""}>Ver el detalle →</a>`
     : "";
 
 const statChips = (item: Insight, from: number) =>
@@ -922,11 +943,12 @@ function mixCard(
   lines: SegmentLine[],
   comparable: boolean,
   kind: "page" | "query" | null = null,
+  limit = 6,
 ): string {
   if (lines.length === 0) return "";
   const total = lines.reduce((sum, line) => sum + line.clicks, 0);
   const prevTotal = lines.reduce((sum, line) => sum + line.prevClicks, 0);
-  const shown = lines.slice(0, 6);
+  const shown = lines.slice(0, limit);
   const rows = shown
     .map((line, index) => {
       const diff = line.clicks - line.prevClicks;
@@ -2250,19 +2272,70 @@ function auditsHint(): string {
 /** Discover day by day: a bar per day, the best one in red. */
 function discoverChart(daily: { date: string; clicks: number }[]): string {
   if (daily.length === 0) return "";
+  const max = Math.max(...daily.map((point) => point.clicks), 1);
+  const peak = daily.reduce((a, b) => (b.clicks > a.clicks ? b : a));
+  const summary = `<p class="dpk">Mejor día: <b>${esc(dayShort(peak.date))}</b> con ${num(peak.clicks)} clics. La media diaria es de ${num(daily.reduce((sum, point) => sum + point.clicks, 0) / daily.length)}.</p>`;
+  if (daily.length <= 40) {
+    const cols = daily
+      .map((point) => {
+        const h = Math.max(2, Math.round((point.clicks / max) * 110));
+        const dayNumber = String(Number(point.date.slice(8, 10)));
+        return `<div class="dc${point === peak ? " pk" : ""}" title="${esc(dayShort(point.date))}: ${num(point.clicks)} clics"><span class="dv">${num(point.clicks)}</span><i style="height:${h}px"></i><span class="dd">${dayNumber}</span></div>`;
+      })
+      .join("");
+    return `${summary}<div class="dcols">${cols}</div><div class="dax"><span>${esc(dayShort(daily[0].date))}</span><span>${esc(dayShort(daily[daily.length - 1].date))}</span></div>`;
+  }
   const width = 700;
   const height = 120;
   const gap = daily.length > 60 ? 1 : 3;
   const bar = (width - gap * (daily.length - 1)) / daily.length;
-  const max = Math.max(...daily.map((point) => point.clicks), 1);
-  const peak = daily.reduce((a, b) => (b.clicks > a.clicks ? b : a));
   const rects = daily
     .map((point, index) => {
       const h = Math.max(1.5, (point.clicks / max) * (height - 4));
       return `<rect x="${(index * (bar + gap)).toFixed(2)}" y="${(height - h).toFixed(2)}" width="${bar.toFixed(2)}" height="${h.toFixed(2)}" rx="1.5" fill="${point === peak ? "#f11c41" : "#1a1a1a"}"><title>${esc(dayShort(point.date))}: ${num(point.clicks)} clics</title></rect>`;
     })
     .join("");
-  return `<p class="dpk">Mejor día: <b>${esc(dayShort(peak.date))}</b> con ${num(peak.clicks)} clics. La media diaria es de ${num(daily.reduce((sum, point) => sum + point.clicks, 0) / daily.length)}.</p><div class="dchart"><svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="Clics diarios de Discover">${rects}</svg><div class="dax"><span>${esc(dayShort(daily[0].date))}</span><span>${esc(dayShort(daily[daily.length - 1].date))}</span></div></div>`;
+  return `${summary}<div class="dchart"><svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="Clics diarios de Discover">${rects}</svg><div class="dax"><span>${esc(dayShort(daily[0].date))}</span><span>${esc(dayShort(daily[daily.length - 1].date))}</span></div></div>`;
+}
+
+/** Discover, web search and Google News side by side: the first thing to
+ *  read in the Traffic tab of a site that gets clicks from Discover. */
+function googleSourcesBlock(report: ReportFull): string {
+  const discover = report.snapshot.discover;
+  if (!discover?.concentration) return "";
+  const comparable = report.snapshot.period.comparable;
+  const web = discover.webClicks ?? 0;
+  const news = discover.newsClicks ?? 0;
+  const google = discover.clicks + web + news;
+  const share = google > 0 ? discover.clicks / google : 0;
+  const lines: SegmentLine[] = [
+    {
+      label: "Discover",
+      clicks: discover.clicks,
+      prevClicks: discover.prevClicks,
+      impressions: discover.impressions,
+      share: share,
+    },
+    {
+      label: "Búsqueda en Google",
+      clicks: web,
+      prevClicks: discover.prevWebClicks ?? 0,
+      impressions: 0,
+      share: google > 0 ? web / google : 0,
+    },
+    ...(news > 0
+      ? [
+          {
+            label: "Google News",
+            clicks: news,
+            prevClicks: discover.prevNewsClicks ?? 0,
+            impressions: 0,
+            share: google > 0 ? news / google : 0,
+          },
+        ]
+      : []),
+  ].sort((a, b) => b.clicks - a.clicks);
+  return `<div class="dgrid1">${mixCard("De dónde viene el tráfico de Google", lines, comparable)}</div>`;
 }
 
 /** Discover for a site that lives on it (a media outlet): how much it weighs
@@ -2316,37 +2389,12 @@ function discoverBlock(report: ReportFull): string {
       label: "del tráfico de Google viene de Discover",
     },
   ]);
-  const lines: SegmentLine[] = [
-    {
-      label: "Discover",
-      clicks: discover.clicks,
-      prevClicks: discover.prevClicks,
-      impressions: discover.impressions,
-      share: share,
-    },
-    {
-      label: "Búsqueda en Google",
-      clicks: web,
-      prevClicks: discover.prevWebClicks ?? 0,
-      impressions: 0,
-      share: google > 0 ? web / google : 0,
-    },
-    ...(news > 0
-      ? [
-          {
-            label: "Google News",
-            clicks: news,
-            prevClicks: discover.prevNewsClicks ?? 0,
-            impressions: 0,
-            share: google > 0 ? news / google : 0,
-          },
-        ]
-      : []),
-  ].sort((a, b) => b.clicks - a.clicks);
-  const origin = mixCard(
-    "De dónde viene el tráfico de Google",
-    lines,
+  const topics = mixCard(
+    "Temas que más tráfico traen en Discover",
+    discover.topics ?? [],
     comparable,
+    "page",
+    8,
   );
   const sections = mixCard(
     "Secciones de la web en Discover",
@@ -2424,7 +2472,7 @@ function discoverBlock(report: ReportFull): string {
     "discover",
     "Tráfico procedente de Google Discover",
     "Discover recomienda contenido a usuarios con intereses afines aunque no hayan buscado nada. Para un medio es una fuente principal: aquí se ve cuánto pesa, cómo se mueve y de qué páginas depende. Datos de Search Console.",
-    `${summary}<div class="grid g2 dgrid">${origin}${sections}</div><div class="sheet"><h3>Clics por día en Discover</h3>${discoverChart(discover.daily ?? [])}</div>${concentration}<div class="sheet" style="margin-top:18px"><h3>Páginas con más clics en Discover</h3>${pageTable}</div>${goneTable ? `<div class="sheet" style="margin-top:18px"><h3>Dejan de aparecer en Discover</h3>${goneTable}</div>` : ""}`,
+    `${summary}<div class="dgrid1">${topics}</div><div class="dgrid1">${sections}</div><div class="sheet"><h3>Clics por día en Discover</h3>${discoverChart(discover.daily ?? [])}</div>${concentration}<div class="sheet" style="margin-top:18px"><h3>Páginas con más clics en Discover</h3>${pageTable}</div>${goneTable ? `<div class="sheet" style="margin-top:18px"><h3>Dejan de aparecer en Discover</h3>${goneTable}</div>` : ""}`,
   );
 }
 
@@ -2703,8 +2751,11 @@ export function renderReportDocument(
         }
       })();
   const hidden = new Set<string>(report.notes.hidden);
-  const show = (id: SectionId, build: () => string) =>
-    hidden.has(id) ? "" : build();
+  const show = (id: SectionId, build: () => string) => {
+    if (hidden.has(id)) return "";
+    const html = build();
+    return html ? `<i class="anc" id="b-${id}"></i>${html}` : "";
+  };
   const columns = (...parts: string[]) => {
     const filled = parts.filter(Boolean);
     return filled.length > 1
@@ -2725,6 +2776,7 @@ export function renderReportDocument(
       label: "Tráfico",
       html:
         lead("trafico") +
+        show("fuentes", () => googleSourcesBlock(report)) +
         show("evolucion", () => trendBlock(report)) +
         show("reparto", () => trafficMixBlock(report)) +
         show("semana", () => weekBlock(report)) +

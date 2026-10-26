@@ -5,6 +5,93 @@
 import type { GscSearchAnalyticsRow } from "@/server/lib/gscClient";
 import { isBrandQuery } from "@/custom/radar/radarAnalysis";
 
+// ------------------------------------------------------------- topics
+
+const TOPIC_STOPWORDS = new Set(
+  (
+    "para como pero porque este esta estos estas ese esa esos esas aquel todo todos toda todas " +
+    "sobre entre desde hasta tras ante bajo cada otro otra otros otras mismo misma ser son fue " +
+    "han has hay muy mas menos solo tambien donde cuando quien cual cuales segun durante contra " +
+    "tiene tienen hace hacen puede pueden esta estan estar sera seran dice dicen video noticia noticias"
+  ).split(" "),
+);
+
+/** The words of a page's slug that can name a topic (no short or empty words). */
+function slugWords(url: string): string[] {
+  let path = url;
+  try {
+    path = new URL(url).pathname;
+  } catch {
+    // a bare path
+  }
+  const slug = path.split("/").filter(Boolean).pop() ?? "";
+  const words = slug
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .split(/[-_.]+/)
+    .filter((word) => /^[a-z]{4,}$/.test(word) && !TOPIC_STOPWORDS.has(word));
+  return [...new Set(words)];
+}
+
+/** Names the topic of every page from the words its address shares with
+ *  other pages, the heaviest word first: a word has to bring at least two
+ *  pages to be a topic, and a word that is in most pages says nothing. Pages
+ *  that share no such word go to "Otros temas". The site's own content decides
+ *  the topics, nothing is hard-coded. */
+export function topicClassifier(
+  rows: { url: string; clicks: number }[],
+  maxTopics = 10,
+): (url: string) => string {
+  const pages = rows.map((row) => ({
+    url: row.url,
+    clicks: row.clicks,
+    words: slugWords(row.url),
+  }));
+  const generic =
+    pages.length >= 15
+      ? (() => {
+          const seen = new Map<string, number>();
+          for (const page of pages) {
+            for (const word of page.words)
+              seen.set(word, (seen.get(word) ?? 0) + 1);
+          }
+          return new Set(
+            [...seen.entries()]
+              .filter(([, count]) => count > pages.length * 0.4)
+              .map(([word]) => word),
+          );
+        })()
+      : new Set<string>();
+  const labelOf = new Map<string, string>();
+  const open = new Set(pages.map((page) => page.url));
+  for (let round = 0; round < maxTopics; round += 1) {
+    const tally = new Map<string, { clicks: number; pages: number }>();
+    for (const page of pages) {
+      if (!open.has(page.url)) continue;
+      for (const word of page.words) {
+        if (generic.has(word)) continue;
+        const entry = tally.get(word) ?? { clicks: 0, pages: 0 };
+        entry.clicks += page.clicks;
+        entry.pages += 1;
+        tally.set(word, entry);
+      }
+    }
+    const best = [...tally.entries()]
+      .filter(([, entry]) => entry.pages >= 2)
+      .sort((a, b) => b[1].clicks - a[1].clicks || b[1].pages - a[1].pages)[0];
+    if (!best) break;
+    const label = best[0].charAt(0).toUpperCase() + best[0].slice(1);
+    for (const page of pages) {
+      if (open.has(page.url) && page.words.includes(best[0])) {
+        labelOf.set(page.url, label);
+        open.delete(page.url);
+      }
+    }
+  }
+  return (url) => labelOf.get(url) ?? "Otros temas";
+}
+
 // ------------------------------------------------------------- segments
 
 /** One page (or query) inside a segment, with its own figures. */
@@ -187,8 +274,9 @@ function languageFolder(parts: string[]): string | null {
   const first = parts[0]?.toLowerCase();
   if (!first) return null;
   if (LANGUAGES.has(first)) return first;
-  const [language, region] = first.split(/[-_]/);
-  return region?.length === 2 && LANGUAGES.has(language) ? first : null;
+  // "pt-br" yes; a story slug that starts with "de-la-" or "el-iv-" no.
+  const match = /^([a-z]{2,3})[-_]([a-z]{2})$/.exec(first);
+  return match && LANGUAGES.has(match[1]) ? first : null;
 }
 
 /** Page parts once the language folder is removed. */

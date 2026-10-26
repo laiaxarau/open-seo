@@ -16,7 +16,11 @@ import {
   mergePageVariants,
   winnersAndLosers,
 } from "@/custom/radar/radarAnalysis";
-import { pageTypeClassifier, segmentRows } from "@/custom/radar/radarSegments";
+import {
+  pageTypeClassifier,
+  topicClassifier,
+  segmentRows,
+} from "@/custom/radar/radarSegments";
 
 export const discoverInputSchema = periodInputSchema.extend({
   projectId: z.string().min(1),
@@ -121,6 +125,11 @@ export async function buildDiscoverReport(
     const classify = pageTypeClassifier(
       [...pageRows, ...prevPageRows].flatMap((row) => row.keys?.[0] ?? []),
     );
+    const topicOf = topicClassifier(
+      [...pageRows, ...prevPageRows].flatMap((row) =>
+        row.keys?.[0] ? [{ url: row.keys[0], clicks: row.clicks }] : [],
+      ),
+    );
     const changes = comparable ? compareDimension(pageRows, prevPageRows) : [];
     const prevByPage = new Map(
       prevPageRows.flatMap((row) =>
@@ -175,6 +184,9 @@ export async function buildDiscoverReport(
       pageChanges: winnersAndLosers(changes, 8),
       pageTypes: segmentRows(pageRows, prevPageRows, (row) =>
         classify(row.keys?.[0] ?? ""),
+      ),
+      topics: segmentRows(pageRows, prevPageRows, (row) =>
+        topicOf(row.keys?.[0] ?? ""),
       ),
       countries: segmentRows(countries.rows, prevCountries.rows, (row) =>
         (row.keys?.[0] ?? "").toUpperCase(),

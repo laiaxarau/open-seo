@@ -294,6 +294,8 @@ export type ReportSnapshot = {
     gone?: DiscoverPage[];
     /** The sections of the site (by page type) with their pages. */
     sections?: SegmentLine[];
+    /** The topics that bring most Discover clicks, found from the page addresses. */
+    topics?: SegmentLine[];
   } | null;
 };
 
@@ -449,6 +451,7 @@ export const REPORT_SECTIONS = [
   { id: "marca", label: "Búsquedas de marca" },
   { id: "tendencias", label: "Interés en Google Trends" },
   { id: "serp", label: "Funciones de la página de resultados" },
+  { id: "fuentes", label: "De dónde viene el tráfico de Google" },
   { id: "reparto", label: "De dónde vienen los clics" },
   { id: "semana", label: "Distribución semanal" },
   { id: "oportunidades", label: "Oportunidades de crecimiento" },
@@ -481,6 +484,7 @@ export const REPORT_TABS: {
         id: "evolucion",
         label: "Evolución del tráfico y actualizaciones de Google",
       },
+      { id: "fuentes", label: "De dónde viene el tráfico de Google" },
       { id: "reparto", label: "De dónde vienen los clics" },
       { id: "semana", label: "Clics medios por día de la semana" },
       { id: "discover", label: "Google Discover" },

@@ -11,8 +11,9 @@ import { ownDomainOf, summariseSerp } from "@/custom/reporting/server/serpMath";
 import type { ReportFull, SerpLine } from "@/custom/reporting/types";
 import { fetchLiveSerp } from "@/server/lib/dataforseo/serp";
 
-/** At most fifteen searches for each report (about 0,03 $). */
-const MAX_SEARCHES = 15;
+/** At most twenty searches for each report (about 0,04 $): the limit is the
+ *  number of calls a Worker may make in one go, not the price. */
+const MAX_SEARCHES = 20;
 const SPAIN = 2724;
 
 export const SERP_COST_FEATURE = "report-serp";

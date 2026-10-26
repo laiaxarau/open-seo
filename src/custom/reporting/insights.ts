@@ -125,7 +125,7 @@ function serpSentence(serp: SerpLine[]): string {
   const summary = serpSummary(serp);
   if (summary.total === 0) return "";
   if (summary.flagged === 0) {
-    return `En ninguna de las ${summary.total} búsquedas clave consultadas Google muestra una función (respuesta de IA, vídeos, fragmento destacado…) por encima del resultado de la web (dato real de la página de resultados de Google).`;
+    return `En ninguna de las ${summary.total} búsquedas que más clics pierden Google muestra una función (respuesta de IA, vídeos, fragmento destacado…) por encima del resultado de la web (dato real de la página de resultados de Google).`;
   }
   const list = summary.counts
     .slice(0, 3)
@@ -134,7 +134,7 @@ function serpSentence(serp: SerpLine[]): string {
         `${SERP_LABEL[type as SerpFeatureType].toLowerCase()} en ${count}`,
     )
     .join(", ");
-  return `En ${summary.flagged} de las ${summary.total} búsquedas clave consultadas Google muestra por encima del resultado de la web: ${list} (dato real de la página de resultados de Google: consulta en vivo, ordenador, España).`;
+  return `En ${summary.flagged} de las ${summary.total} búsquedas que más clics pierden Google muestra por encima del resultado de la web: ${list} (dato real de la página de resultados de Google: consulta en vivo, ordenador, España).`;
 }
 
 function serpInsight(serp: SerpLine[]): Insight | null {
@@ -147,7 +147,7 @@ function serpInsight(serp: SerpLine[]): Insight | null {
     weight: 80,
     title:
       summary.flagged > 0
-        ? `Google muestra funciones por encima de la web en ${summary.flagged} de ${summary.total} búsquedas clave`
+        ? `Google muestra funciones por encima de la web en ${summary.flagged} de ${summary.total} búsquedas que más clics pierden`
         : "Google no muestra funciones por encima de la web en las búsquedas clave",
     body: `${serpSentence(serp)}${summary.flagged > 0 ? " Estas funciones se llevan clics aunque la posición no cambie." : ""}`,
     stats: summary.counts.slice(0, 3).map(([type, count]) => ({

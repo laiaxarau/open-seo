@@ -6,6 +6,7 @@ import {
   pageTypeClassifier,
   queryIntent,
   segmentRows,
+  topicClassifier,
 } from "@/custom/radar/radarSegments";
 
 const urls = [
@@ -77,6 +78,44 @@ describe("pageTypeClassifier", () => {
       "https://x.com/us/b",
     ]);
     expect(classify("https://x.com/us/a")).toBe("/us/");
+  });
+});
+
+describe("pages at the root with long slugs", () => {
+  it("does not take a slug that starts like a locale for a language folder", () => {
+    const classify = pageTypeClassifier([
+      "https://x.com/de-la-barrera-previa-real-valladolid/",
+      "https://x.com/el-iv-torneo-de-futbol/",
+      "https://x.com/el-11-de-noviembre/",
+      "https://x.com/",
+    ]);
+    expect(
+      classify("https://x.com/de-la-barrera-previa-real-valladolid/"),
+    ).toBe("Páginas en la raíz");
+    expect(classify("https://x.com/el-iv-torneo-de-futbol/")).toBe(
+      "Páginas en la raíz",
+    );
+    expect(classify("https://x.com/")).toBe("Inicio");
+  });
+});
+
+describe("topicClassifier", () => {
+  it("names topics from words that several pages share, heaviest first", () => {
+    const topicOf = topicClassifier([
+      {
+        url: "https://x.com/previa-real-valladolid-las-palmas-2026/",
+        clicks: 500,
+      },
+      { url: "https://x.com/valladolid-gana-en-casa/", clicks: 300 },
+      { url: "https://x.com/receta-tortilla-patatas/", clicks: 200 },
+      { url: "https://x.com/receta-croquetas-jamon/", clicks: 150 },
+      { url: "https://x.com/pagina-suelta-unica/", clicks: 40 },
+    ]);
+    expect(topicOf("https://x.com/valladolid-gana-en-casa/")).toBe(
+      "Valladolid",
+    );
+    expect(topicOf("https://x.com/receta-croquetas-jamon/")).toBe("Receta");
+    expect(topicOf("https://x.com/pagina-suelta-unica/")).toBe("Otros temas");
   });
 });
 
