@@ -60,9 +60,12 @@ export function summariseTrend(
   });
 }
 
-/** The searches worth asking Google Trends about: the ones that explain the
- *  pages that fall, then the ones that fall most. Brand searches are left out
- *  (their interest says nothing about the topic). */
+/** The searches worth asking Google Trends about. Google Trends only has
+ *  figures for searches with enough volume and scales each request to its
+ *  biggest term, so: the topics of the site come first (broad terms it
+ *  knows), then the searches that explain the pages that fall, and the list is
+ *  sorted by volume so each request of five holds terms of a similar size.
+ *  Brand searches are left out (their interest says nothing about the topic). */
 export function trendKeywords(report: ReportFull): string[] {
   const { snapshot } = report;
   const brand = new Set(
@@ -70,6 +73,13 @@ export function trendKeywords(report: ReportFull): string[] {
       .filter((row) => row.brand)
       .map((row) => row.query),
   );
+  const volume = new Map<string, number>();
+  for (const row of snapshot.queryRows ?? []) {
+    volume.set(row.query, row.impressions);
+  }
+  for (const topic of snapshot.topics ?? []) {
+    volume.set(topic.label, topic.impressions);
+  }
   const picked: string[] = [];
   const add = (query: string | undefined) => {
     const keyword = query?.trim();
@@ -83,11 +93,12 @@ export function trendKeywords(report: ReportFull): string[] {
       picked.push(keyword);
     }
   };
+  for (const topic of (snapshot.topics ?? []).slice(0, 3)) add(topic.label);
   for (const loser of snapshot.pageLosers
     .filter((row) => row.clicksDelta <= -10)
     .slice(0, 3)) {
-    for (const move of (loser.queries ?? []).slice(0, 3)) add(move.query);
+    for (const move of (loser.queries ?? []).slice(0, 2)) add(move.query);
   }
   for (const row of (snapshot.queryLosers ?? []).slice(0, 6)) add(row.key);
-  return picked;
+  return picked.sort((x, y) => (volume.get(y) ?? 0) - (volume.get(x) ?? 0));
 }

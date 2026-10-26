@@ -321,7 +321,7 @@ function trafficInsight(
           ? "Menos búsquedas, sin deterioro del posicionamiento"
           : "Los clics bajan aunque el interés por el tema se mantiene"
         : "Menos búsquedas, sin deterioro del posicionamiento",
-      body: `Los clics bajan un ${pct(clicks)} y las impresiones un ${pct(impressions)}, pero la posición media apenas cambia. ${seen ? trendSentence(seen) : "Lo más probable es una caída de la demanda (estacionalidad o interés por el tema), aunque Search Console no permite confirmarlo y no hay datos de Google Trends en este informe."}`,
+      body: `Los clics bajan un ${pct(clicks)} y las impresiones un ${pct(impressions)}, pero la posición media apenas cambia. ${seen ? trendSentence(seen) : trends.length > 0 ? "Se ha consultado Google Trends, pero no tiene datos suficientes de estas búsquedas para medir si ha cambiado el interés (son búsquedas de poco volumen). Lo más probable es una caída de la demanda (estacionalidad o interés por el tema), sin poder confirmarlo." : "Lo más probable es una caída de la demanda (estacionalidad o interés por el tema), aunque Search Console no permite confirmarlo y no hay datos de Google Trends en este informe."}`,
     };
   }
   return {
@@ -387,7 +387,7 @@ function pageInsight(
     title: up
       ? `${pathOf(row.key)} es el mayor avance (${signed(row.clicksDelta)} clics)`
       : `${pathOf(row.key)} es la mayor caída (${signed(row.clicksDelta)} clics)`,
-    body: `Pasa de ${num(row.prevClicks)} a ${num(row.clicks)} clics${change(row.clicks, row.prevClicks) !== null ? ` (${signedPct(change(row.clicks, row.prevClicks) ?? 0)})` : ""}.${queries.length ? ` Lo explican ${queries.join(" y ")}.` : ""}${!up && seen ? ` ${trendSentence(seen)}` : !up && cause ? ` Causa probable (estimada con Search Console, sin datos de Google Trends): ${cause}.` : ""}${up ? " Conviene analizar qué tiene esa página (formato, enlaces, actualización) y replicarlo en páginas similares." : " Es la primera página que conviene revisar."}`,
+    body: `Pasa de ${num(row.prevClicks)} a ${num(row.clicks)} clics${change(row.clicks, row.prevClicks) !== null ? ` (${signedPct(change(row.clicks, row.prevClicks) ?? 0)})` : ""}.${queries.length ? ` Lo explican ${queries.join(" y ")}.` : ""}${!up && seen ? ` ${trendSentence(seen)}` : !up && cause ? ` Causa probable (estimada con Search Console; ${trends.length > 0 ? "Google Trends no tiene datos suficientes de sus búsquedas" : "sin datos de Google Trends"}): ${cause}.` : ""}${up ? " Conviene analizar qué tiene esa página (formato, enlaces, actualización) y replicarlo en páginas similares." : " Es la primera página que conviene revisar."}`,
     stats: [
       {
         label: "Posición",

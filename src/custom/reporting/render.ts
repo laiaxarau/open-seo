@@ -1367,7 +1367,7 @@ function trendsBlock(report: ReportFull): string {
 function trendsNote(report: ReportFull): string {
   const lines = report.notes.trends ?? [];
   if (lines.length === 0) return "";
-  return `<p class="gtn"><b>Google Trends.</b> Los datos de interés son reales: es el interés relativo (de 0 a 100) de cada búsqueda en Google en España, comparando este periodo con el anterior, consultado el ${day(lines[0].fetchedAt.slice(0, 10))}. No son volúmenes de búsqueda.</p>`;
+  return `<p class="gtn"><b>Google Trends.</b> Los datos de interés son reales: es el interés relativo (de 0 a 100) de cada búsqueda en Google en España, comparando este periodo con el anterior, consultado el ${day(lines[0].fetchedAt.slice(0, 10))}. No son volúmenes de búsqueda. Un guion indica que Google Trends no tiene datos suficientes de ese periodo (búsquedas de poco volumen).</p>`;
 }
 
 // --------------------------------------------------------------- topics

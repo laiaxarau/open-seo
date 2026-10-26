@@ -106,6 +106,14 @@ describe("the traffic finding and Google Trends", () => {
     expect(item?.body).toContain("Google Trends no confirma");
   });
 
+  it("says Google Trends was asked but has too little data, not that it was not used", () => {
+    const item = buildInsights(falling, [
+      { ...line(0), change: null, before: null },
+    ]).find((found) => found.id === "traffic");
+    expect(item?.body).toContain("no tiene datos suficientes");
+    expect(item?.body).not.toContain("no hay datos de Google Trends");
+  });
+
   it("admits it is a guess when there is no Google Trends data", () => {
     const item = buildInsights(falling).find((found) => found.id === "traffic");
     expect(item?.body).toContain("no hay datos de Google Trends");
