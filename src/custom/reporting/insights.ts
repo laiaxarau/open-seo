@@ -708,14 +708,32 @@ function discoverInsight(snapshot: ReportSnapshot): Insight | null {
   const discover = snapshot.discover;
   if (!discover || discover.clicks < 10) return null;
   const delta = change(discover.clicks, discover.prevClicks);
+  const google =
+    discover.clicks + (discover.webClicks ?? 0) + (discover.newsClicks ?? 0);
+  const share =
+    discover.webClicks !== undefined && google > 0
+      ? discover.clicks / google
+      : null;
+  const top3 = discover.concentration?.top3 ?? null;
+  const stats = [{ label: "Impresiones", value: num(discover.impressions) }];
+  if (share !== null) {
+    stats.unshift({ label: "Peso en Google", value: pct(share) });
+  }
+  if (top3 !== null) {
+    stats.push({ label: "En 3 páginas", value: pct(top3) });
+  }
   return {
     id: "discover",
     topic: "Google Discover",
     tone: delta !== null && delta < -0.15 ? "info" : "good",
-    weight: 52,
-    title: `Google Discover aporta ${num(discover.clicks)} clics`,
-    body: `Discover recomienda el contenido a usuarios que no lo estaban buscando${delta !== null ? ` (${signedPct(delta)} frente al periodo anterior)` : ""}. Es tráfico adicional al de las búsquedas.`,
-    stats: [{ label: "Impresiones", value: num(discover.impressions) }],
+    // A site that lives on Discover (a media outlet) hears about it first.
+    weight: share !== null && share >= 0.3 ? 96 : 52,
+    title:
+      share !== null
+        ? `Google Discover aporta ${num(discover.clicks)} clics (${pct(share)} del tráfico de Google)`
+        : `Google Discover aporta ${num(discover.clicks)} clics`,
+    body: `Discover recomienda el contenido a usuarios que no lo estaban buscando${delta !== null ? ` (${signedPct(delta)} frente al periodo anterior)` : ""}. ${share !== null && share >= 0.3 ? "Es una de las fuentes principales de tráfico del sitio." : "Es tráfico adicional al de las búsquedas."}${top3 !== null && top3 >= 0.5 ? ` Ojo: ${pct(top3)} de sus clics están en solo 3 páginas, así que depende de muy pocas piezas.` : ""}`,
+    stats,
   };
 }
 

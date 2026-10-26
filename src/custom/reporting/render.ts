@@ -2247,7 +2247,188 @@ function auditsHint(): string {
   return `<div class="note"><b>Solo en la vista previa</b>Este informe aún no tiene auditoría técnica. Define las tipologías de página en el Contexto del proyecto y usa «Auditar» en el editor: el cliente no verá este aviso.</div>`;
 }
 
+/** Discover day by day: a bar per day, the best one in red. */
+function discoverChart(daily: { date: string; clicks: number }[]): string {
+  if (daily.length === 0) return "";
+  const width = 700;
+  const height = 120;
+  const gap = daily.length > 60 ? 1 : 3;
+  const bar = (width - gap * (daily.length - 1)) / daily.length;
+  const max = Math.max(...daily.map((point) => point.clicks), 1);
+  const peak = daily.reduce((a, b) => (b.clicks > a.clicks ? b : a));
+  const rects = daily
+    .map((point, index) => {
+      const h = Math.max(1.5, (point.clicks / max) * (height - 4));
+      return `<rect x="${(index * (bar + gap)).toFixed(2)}" y="${(height - h).toFixed(2)}" width="${bar.toFixed(2)}" height="${h.toFixed(2)}" rx="1.5" fill="${point === peak ? "#f11c41" : "#1a1a1a"}"><title>${esc(dayShort(point.date))}: ${num(point.clicks)} clics</title></rect>`;
+    })
+    .join("");
+  return `<p class="dpk">Mejor día: <b>${esc(dayShort(peak.date))}</b> con ${num(peak.clicks)} clics. La media diaria es de ${num(daily.reduce((sum, point) => sum + point.clicks, 0) / daily.length)}.</p><div class="dchart"><svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="Clics diarios de Discover">${rects}</svg><div class="dax"><span>${esc(dayShort(daily[0].date))}</span><span>${esc(dayShort(daily[daily.length - 1].date))}</span></div></div>`;
+}
+
+/** Discover for a site that lives on it (a media outlet): how much it weighs
+ *  next to web search and Google News, how it moves day by day, how much
+ *  depends on a few pages, which pages and sections hold it and what is
+ *  gone. Reports made before this data existed use the short block. */
 function discoverBlock(report: ReportFull): string {
+  const discover = report.snapshot.discover;
+  if (!discover) return "";
+  if (!discover.concentration) return legacyDiscoverBlock(report);
+  const comparable = report.snapshot.period.comparable;
+  const web = discover.webClicks ?? 0;
+  const news = discover.newsClicks ?? 0;
+  const google = discover.clicks + web + news;
+  const share = google > 0 ? discover.clicks / google : 0;
+  const ctr =
+    discover.impressions > 0 ? discover.clicks / discover.impressions : 0;
+  const prevImpressions = discover.prevImpressions ?? 0;
+  const prevCtr =
+    prevImpressions > 0 ? discover.prevClicks / prevImpressions : null;
+  const ctrDelta =
+    comparable && prevCtr !== null
+      ? (() => {
+          const diff = (ctr - prevCtr) * 100;
+          if (Math.abs(diff) < 0.05)
+            return `<span class="dl flat">= igual</span>`;
+          return `<span class="dl ${diff > 0 ? "up" : "down"}">${diff > 0 ? "▲" : "▼"} ${one.format(Math.abs(diff))} puntos</span>`;
+        })()
+      : "";
+  const summary = chips([
+    {
+      value: num(discover.clicks),
+      label: "clics desde Discover",
+      delta: comparable ? pctDelta(discover.clicks, discover.prevClicks) : "",
+    },
+    {
+      value: num(discover.impressions),
+      label: "impresiones en Discover",
+      delta:
+        comparable && prevImpressions > 0
+          ? pctDelta(discover.impressions, prevImpressions)
+          : "",
+    },
+    {
+      value: `${one.format(ctr * 100)} %`,
+      label: "CTR de Discover",
+      delta: ctrDelta,
+    },
+    {
+      value: `${Math.round(share * 100)} %`,
+      label: "del tráfico de Google viene de Discover",
+    },
+  ]);
+  const lines: SegmentLine[] = [
+    {
+      label: "Discover",
+      clicks: discover.clicks,
+      prevClicks: discover.prevClicks,
+      impressions: discover.impressions,
+      share: share,
+    },
+    {
+      label: "Búsqueda en Google",
+      clicks: web,
+      prevClicks: discover.prevWebClicks ?? 0,
+      impressions: 0,
+      share: google > 0 ? web / google : 0,
+    },
+    ...(news > 0
+      ? [
+          {
+            label: "Google News",
+            clicks: news,
+            prevClicks: discover.prevNewsClicks ?? 0,
+            impressions: 0,
+            share: google > 0 ? news / google : 0,
+          },
+        ]
+      : []),
+  ].sort((a, b) => b.clicks - a.clicks);
+  const origin = mixCard(
+    "De dónde viene el tráfico de Google",
+    lines,
+    comparable,
+  );
+  const sections = mixCard(
+    "Secciones de la web en Discover",
+    discover.sections ?? [],
+    comparable,
+    "page",
+  );
+  const concentration = chips([
+    {
+      value: `${Math.round(discover.concentration.top3 * 100)} %`,
+      label: "de los clics de Discover están en solo 3 páginas",
+    },
+    {
+      value: `${Math.round(discover.concentration.top10 * 100)} %`,
+      label: "en las 10 primeras",
+    },
+    {
+      value: num(discover.concentration.pages),
+      label: "páginas con clics en Discover",
+    },
+  ]);
+  const maxClicks = Math.max(
+    ...discover.topPages.map((page) => page.clicks),
+    1,
+  );
+  const maxImpressions = Math.max(
+    ...discover.topPages.map((page) => page.impressions ?? 0),
+    1,
+  );
+  const pageTable = dataTable(
+    [
+      { label: "Página" },
+      { label: "Clics", num: true },
+      ...(comparable ? [{ label: "Variación", num: true }] : []),
+      { label: "Impresiones", num: true },
+      { label: "CTR", num: true },
+    ],
+    discover.topPages.map((page) => [
+      {
+        h: `${pageLink(page.url)}${comparable && page.prevClicks === 0 ? ' <span class="tag">Nueva</span>' : ""}`,
+        v: page.url,
+        cls: "pg",
+      },
+      clicksCell(page.clicks, comparable ? page.prevClicks : null, maxClicks),
+      ...(comparable ? [deltaCell(page.clicks, page.prevClicks)] : []),
+      impressionsCell(page.impressions ?? 0, maxImpressions),
+      {
+        h: ctrText(page.clicks, page.impressions ?? 0),
+        v: page.impressions ? page.clicks / page.impressions : 0,
+      },
+    ]),
+    "No hay datos.",
+    true,
+  );
+  const gone = discover.gone ?? [];
+  const goneTable =
+    gone.length > 0
+      ? dataTable(
+          [
+            { label: "Página" },
+            { label: "Clics antes", num: true },
+            { label: "Clics ahora", num: true },
+          ],
+          gone.map((page) => [
+            { h: pageLink(page.url), v: page.url, cls: "pg" },
+            { h: num(page.prevClicks), v: page.prevClicks },
+            { h: num(page.clicks), v: page.clicks },
+          ]),
+          "No hay datos.",
+          true,
+        )
+      : "";
+  return block(
+    report,
+    "discover",
+    "Tráfico procedente de Google Discover",
+    "Discover recomienda contenido a usuarios con intereses afines aunque no hayan buscado nada. Para un medio es una fuente principal: aquí se ve cuánto pesa, cómo se mueve y de qué páginas depende. Datos de Search Console.",
+    `${summary}<div class="grid g2 dgrid">${origin}${sections}</div><div class="sheet"><h3>Clics por día en Discover</h3>${discoverChart(discover.daily ?? [])}</div>${concentration}<div class="sheet" style="margin-top:18px"><h3>Páginas con más clics en Discover</h3>${pageTable}</div>${goneTable ? `<div class="sheet" style="margin-top:18px"><h3>Dejan de aparecer en Discover</h3>${goneTable}</div>` : ""}`,
+  );
+}
+
+function legacyDiscoverBlock(report: ReportFull): string {
   const discover = report.snapshot.discover;
   if (!discover) return "";
   const max = Math.max(...discover.topPages.map((item) => item.clicks), 1);

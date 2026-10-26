@@ -31,6 +31,22 @@ const PAGE_ROW_LIMIT = 1000;
 const COUNTRY_ROW_LIMIT = 25;
 const TOP_PAGES = 15;
 
+/** How much of the clicks the first pages hold: a site that lives on three
+ *  articles depends on luck, one that spreads them has a steady engine. */
+function concentrationOf(rows: { clicks: number }[]) {
+  const clicks = rows.map((row) => row.clicks).sort((a, b) => b - a);
+  const total = clicks.reduce((sum, value) => sum + value, 0);
+  const share = (count: number) =>
+    total > 0
+      ? clicks.slice(0, count).reduce((sum, value) => sum + value, 0) / total
+      : 0;
+  return {
+    top3: share(3),
+    top10: share(10),
+    pages: clicks.filter((value) => value > 0).length,
+  };
+}
+
 /**
  * Discover (and Google News, images and video) from Search Console. Discover
  * has no queries and no position: only pages, countries and dates, so this
@@ -65,16 +81,40 @@ export async function buildDiscoverReport(
     comparable ? fetchRows(...args) : Promise.resolve(NO_ROWS);
 
   try {
-    const [daily, prevDaily, pages, prevPages, countries, prevCountries, web] =
-      await Promise.all([
-        fetchRows(["date"], now, DAILY_ROW_LIMIT),
-        fetchPrev(["date"], prev, DAILY_ROW_LIMIT),
-        fetchRows(["page"], now, PAGE_ROW_LIMIT),
-        fetchPrev(["page"], prev, PAGE_ROW_LIMIT),
-        fetchRows(["country"], now, COUNTRY_ROW_LIMIT),
-        fetchPrev(["country"], prev, COUNTRY_ROW_LIMIT),
-        fetchRows(["date"], now, DAILY_ROW_LIMIT, "web"),
-      ]);
+    const none = { rows: [], siteUrl: "" } as unknown as typeof NO_ROWS;
+    const [
+      daily,
+      prevDaily,
+      pages,
+      prevPages,
+      countries,
+      prevCountries,
+      web,
+      prevWeb,
+      news,
+      prevNews,
+    ] = await Promise.all([
+      fetchRows(["date"], now, DAILY_ROW_LIMIT),
+      fetchPrev(["date"], prev, DAILY_ROW_LIMIT),
+      fetchRows(["page"], now, PAGE_ROW_LIMIT),
+      fetchPrev(["page"], prev, PAGE_ROW_LIMIT),
+      fetchRows(["country"], now, COUNTRY_ROW_LIMIT),
+      fetchPrev(["country"], prev, COUNTRY_ROW_LIMIT),
+      fetchRows(["date"], now, DAILY_ROW_LIMIT, "web"),
+      fetchPrev(["date"], prev, DAILY_ROW_LIMIT, "web"),
+      // Google News only matters next to Discover, and a site without it
+      // answers with nothing: never a reason to fail the report.
+      data.type === "discover"
+        ? fetchRows(["date"], now, DAILY_ROW_LIMIT, "googleNews").catch(
+            () => none,
+          )
+        : Promise.resolve(none),
+      data.type === "discover"
+        ? fetchPrev(["date"], prev, DAILY_ROW_LIMIT, "googleNews").catch(
+            () => none,
+          )
+        : Promise.resolve(none),
+    ]);
 
     const pageRows = mergePageVariants(pages.rows, 0);
     const prevPageRows = mergePageVariants(prevPages.rows, 0);
@@ -103,6 +143,12 @@ export async function buildDiscoverReport(
       totals: sumSearchTotals(daily.rows),
       prevTotals: sumSearchTotals(prevDaily.rows),
       webClicks: sumSearchTotals(web.rows).clicks,
+      prevWebClicks: sumSearchTotals(prevWeb.rows).clicks,
+      news: {
+        ...sumSearchTotals(news.rows),
+        prevClicks: sumSearchTotals(prevNews.rows).clicks,
+      },
+      concentration: concentrationOf(pageRows),
       daily: alignDaily(
         daily.rows,
         prevDaily.rows,

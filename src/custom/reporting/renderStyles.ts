@@ -1041,4 +1041,13 @@ details.op>summary{break-after:avoid;padding:8px 0 6px}
 .sfp{display:inline-block;margin:2px 5px 2px 0;padding:2px 10px;border:1px solid var(--line);border-radius:999px;font-size:12px;font-weight:600;background:#fff;color:var(--ink2);white-space:nowrap}
 .sfp.up{border-color:var(--red);color:var(--red)}
 @media print{.sfp{font-size:7.5pt;padding:1px 7px}}
+/* ---- v30: Discover ---- */
+.dpk{margin:0 0 10px;font-size:14px;color:var(--ink2)}
+.dchart svg{display:block;width:100%;height:120px}
+.dax{display:flex;justify-content:space-between;margin-top:6px;font-size:12px;color:var(--muted)}
+@media print{.dchart svg{height:90px}.dpk{font-size:9.5pt}}
+.dgrid{align-items:start;gap:18px;margin-bottom:18px}
+.dgrid>.mix{margin:0}
+@media print{.dgrid{gap:10px;margin-bottom:10px}}
+.sheet+.chips{margin-top:16px}
 `;

@@ -163,6 +163,16 @@ export type OpportunityLine = {
   kind: "snippet" | "push";
 };
 
+/** A page in Discover with its figures and those of the previous period. */
+export type DiscoverPage = {
+  url: string;
+  clicks: number;
+  prevClicks: number;
+  impressions?: number;
+  prevImpressions?: number;
+  ctr?: number;
+};
+
 export type PageLine = {
   url: string;
   clicks: number;
@@ -264,12 +274,26 @@ export type ReportSnapshot = {
     notInSitemap: number;
     sitemapErrors: number;
   } | null;
-  /** Google Discover traffic; null when the site gets none. */
+  /** Google Discover traffic; null when the site gets none. The fields
+   *  after `topPages` are missing in reports made before they existed. */
   discover: {
     clicks: number;
     prevClicks: number;
     impressions: number;
-    topPages: PageLine[];
+    topPages: DiscoverPage[];
+    prevImpressions?: number;
+    /** Clicks from web search and from Google News, to weigh Discover. */
+    webClicks?: number;
+    prevWebClicks?: number;
+    newsClicks?: number;
+    prevNewsClicks?: number;
+    daily?: { date: string; clicks: number; prevClicks: number | null }[];
+    /** Share of the Discover clicks held by the first 3 and 10 pages. */
+    concentration?: { top3: number; top10: number; pages: number };
+    /** Pages that had Discover clicks before and have lost most of them. */
+    gone?: DiscoverPage[];
+    /** The sections of the site (by page type) with their pages. */
+    sections?: SegmentLine[];
   } | null;
 };
 

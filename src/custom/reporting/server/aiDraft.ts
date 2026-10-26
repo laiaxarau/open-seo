@@ -262,6 +262,7 @@ Búsquedas y páginas: cada vez que menciones una búsqueda (consulta) escríbel
 Marca: NUNCA concluyas que el tráfico de marca «no capta clientes nuevos», que «solo viene de quien ya conoce la marca» ni que es menos valioso. Un aumento de las búsquedas de marca suele indicar que más personas han descubierto o se han informado sobre la marca en otros canales (asistentes de IA como ChatGPT o Gemini, redes, prensa, recomendaciones, publicidad) y después la buscan en Google; es una señal de notoriedad y de que el trabajo de marca y visibilidad en IA funciona. Preséntalo como hipótesis razonable y prudente («probablemente», «es coherente con»), nunca como hecho, porque Search Console no dice de dónde viene el interés. Distingue, eso sí, el tráfico de marca (notoriedad) del tráfico sin marca (visibilidad orgánica por temas).
 Google Trends: si los datos traen «tendencias_google_trends», úsalos para explicar por qué cae una página (la demanda baja, se mantiene o sube) y SIEMPRE di que el dato es de Google Trends, por ejemplo «según Google Trends, el interés por «X» baja un 35 % frente al periodo anterior». Es interés relativo (de 0 a 100), no volumen de búsquedas. Si el interés se mantiene o sube mientras caen los clics, la causa no es la demanda sino el posicionamiento: dilo. Nunca inventes datos de Trends: si una búsqueda no tiene dato, no afirmes nada sobre su tendencia. Un «cambioPorcentual» nulo significa que Google Trends no tiene datos suficientes de ese periodo (búsqueda de poco volumen): no concluyas nada de ella y, si es relevante, dilo con claridad.
 Página de resultados de Google: si los datos traen «funciones_pagina_resultados», úsalos para explicar los clics que bajan con las posiciones intactas: respuestas de IA, fragmentos destacados, vídeos, compras o anuncios por encima del resultado de la web se llevan el clic aunque la posición no cambie. Di SIEMPRE que es un dato de la página de resultados de Google (consulta en vivo, ordenador, España) y que una página de resultados varía entre personas y días. Cita solo lo que traen los datos: nunca inventes funciones ni posiciones, y si una función no está por encima del resultado de la web, no la presentes como causa. Si te dan «porDelanteDeTi», puedes nombrar esos dominios como los que van por delante.
+Google Discover: SOLO si los datos traen «discover», analízalo (es una fuente principal en un medio): su peso frente a la búsqueda y a Google News, si depende de pocas páginas (concentración), si la subida o caída es de un día punta o sostenida, qué páginas y secciones lo sostienen y cuáles dejan de aparecer. Si los datos NO traen «discover», no lo menciones en ningún texto ni propongas nada sobre Discover.
 Porcentajes: siempre que digas que algo «pasa de X a Y», «sube de X a Y», «baja de X a Y», «crece de X a Y» o similar, añade enseguida entre paréntesis el porcentaje de subida o bajada, por ejemplo «pasa de 1.200 a 1.500 clics (+25 %)». Usa el campo cambioPorcentual (o parecido) de los datos: ya está calculado, no lo recalcules de cabeza. Si un dato no lo trae, calcúlalo con cuidado y redondea a un decimal. Escribe los números en formato español (1.234,5).`;
 
 // ------------------------------------------------------------- writing
@@ -282,6 +283,7 @@ Responde SOLO con un objeto JSON válido con esta forma exacta (dentro de los te
    "origen": "Análisis de las páginas: qué explica las que suben y las que bajan, y qué hacer con ellas: 70 a 120 palabras.",
    "temas": "Análisis de los temas con más tráfico y dónde hay margen: 50 a 90 palabras.",
    "oportunidades": "Análisis de qué oportunidades merecen priorizarse y por qué: 60 a 100 palabras.",
+   "discover": "Solo si hay datos de «discover»: lectura de Google Discover, de 60 a 100 palabras (peso, concentración, páginas y secciones, qué hacer). Si no hay datos de Discover, cadena vacía.",
    "tecnico": "Análisis del estado técnico (sitemap, indexación y, si hay, la auditoría de las páginas tipo): 50 a 100 palabras."
  },
  "nextSteps": "HOJA DE RUTA: 4 o 5 acciones ESTRATÉGICAS, ordenadas de más a menos impacto frente a esfuerzo. Cada acción es un bloque; los bloques se separan con una línea en blanco (\\n\\n) y cada bloque tiene exactamente estas cuatro líneas, separadas por \\n: la primera es la acción concreta (empieza por un verbo, sin punto final); las otras empiezan por «Por qué: » (argumenta en 2 o 3 frases con las cifras de los datos y la causa), «Cómo: » (de 2 a 4 pasos concretos, separados por punto y coma) e «Impacto: » (qué resultado se espera y en qué plazo, con una cifra si es posible). Cada acción debe ser una palanca que mueva los resultados (reorientar o crear un grupo de páginas, corregir un fallo de plantilla que afecta a muchas páginas, recuperar un tema que cae, aprovechar un tramo 4-20 con mucho volumen), no un detalle menor como cambiar un título suelto, salvo que sea la palanca principal. Sin vaguedades como «seguir trabajando» o «mejorar el contenido». ENLACES EN LA HOJA DE RUTA (obligatorio): cada vez que una acción, un «Por qué» o un «Cómo» nombre una página concreta, enlázala con [nombre corto](url) usando la dirección completa de los datos; escribe las búsquedas entre «comillas angulares»; y en los pasos de «Cómo» enlaza la fuente oficial de la lista permitida cuando explique cómo hacer algo (por ejemplo, el título, el sitemap o los datos estructurados). Un enlace por página en cada acción como máximo."}
@@ -500,14 +502,53 @@ function brief(
         }))
       : undefined,
     discover: snapshot.discover
-      ? {
-          clics: snapshot.discover.clicks,
-          antes: snapshot.discover.prevClicks,
-          cambioPorcentual: pct(
-            snapshot.discover.clicks,
-            snapshot.discover.prevClicks,
-          ),
-        }
+      ? (() => {
+          const discover = snapshot.discover;
+          const web = discover.webClicks ?? 0;
+          const news = discover.newsClicks ?? 0;
+          const google = discover.clicks + web + news;
+          return {
+            clics: discover.clicks,
+            antes: discover.prevClicks,
+            cambioPorcentual: pct(discover.clicks, discover.prevClicks),
+            impresiones: discover.impressions,
+            ctrPorcentaje:
+              discover.impressions > 0
+                ? Math.round((discover.clicks / discover.impressions) * 1000) /
+                  10
+                : null,
+            pesoSobreElTraficoDeGooglePorcentaje:
+              discover.webClicks !== undefined && google > 0
+                ? Math.round((discover.clicks / google) * 1000) / 10
+                : undefined,
+            clicsBusquedaEnGoogle: discover.webClicks,
+            clicsGoogleNews: discover.newsClicks,
+            concentracionClicsEnLas3PrimerasPaginasPorcentaje:
+              discover.concentration
+                ? Math.round(discover.concentration.top3 * 1000) / 10
+                : undefined,
+            paginasConClics: discover.concentration?.pages,
+            mejorDia: discover.daily?.length
+              ? discover.daily.reduce((x, y) => (y.clicks > x.clicks ? y : x))
+              : undefined,
+            paginasPrincipales: discover.topPages.slice(0, 6).map((page) => ({
+              url: page.url,
+              clics: page.clicks,
+              antes: page.prevClicks,
+              nueva: page.prevClicks === 0,
+            })),
+            dejanDeAparecer: (discover.gone ?? []).map((page) => ({
+              url: page.url,
+              antes: page.prevClicks,
+              ahora: page.clicks,
+            })),
+            secciones: (discover.sections ?? []).slice(0, 5).map((line) => ({
+              seccion: line.label,
+              clics: line.clicks,
+              antes: line.prevClicks,
+            })),
+          };
+        })()
       : undefined,
     hallazgos_calculados: buildInsights(snapshot, trends, serp)
       .slice(0, 9)

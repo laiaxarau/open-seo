@@ -561,11 +561,34 @@ export async function buildReportSnapshot(
               clicks: discoverReport.totals.clicks,
               prevClicks: discoverReport.prevTotals.clicks,
               impressions: discoverReport.totals.impressions,
-              topPages: discoverReport.topPages.slice(0, 4).map((page) => ({
+              prevImpressions: discoverReport.prevTotals.impressions,
+              webClicks: discoverReport.webClicks,
+              prevWebClicks: discoverReport.prevWebClicks,
+              newsClicks: discoverReport.news.clicks,
+              prevNewsClicks: discoverReport.news.prevClicks,
+              daily: discoverReport.daily.map((point) => ({
+                date: point.date,
+                clicks: point.clicks,
+                prevClicks: point.prevClicks,
+              })),
+              concentration: discoverReport.concentration,
+              topPages: discoverReport.topPages.slice(0, 10).map((page) => ({
                 url: page.url,
                 clicks: page.clicks,
                 prevClicks: page.prevClicks,
+                impressions: page.impressions,
+                prevImpressions: page.prevImpressions,
+                ctr: page.ctr,
               })),
+              gone: discoverReport.pageChanges.losers
+                .filter((row) => row.clicksDelta < 0)
+                .slice(0, 5)
+                .map((row) => ({
+                  url: row.key,
+                  clicks: row.clicks,
+                  prevClicks: row.prevClicks,
+                })),
+              sections: segmentLines(discoverReport.pageTypes),
             }
           : null,
     },

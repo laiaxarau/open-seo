@@ -120,6 +120,38 @@ describe("the traffic finding and Google Trends", () => {
   });
 });
 
+describe("the Discover finding", () => {
+  const withDiscover = (webClicks: number, top3: number) =>
+    ({
+      ...base,
+      discover: {
+        clicks: 4000,
+        prevClicks: 3000,
+        impressions: 200000,
+        webClicks,
+        newsClicks: 0,
+        concentration: { top3, top10: 0.8, pages: 120 },
+        topPages: [],
+      },
+    }) as unknown as ReportSnapshot;
+
+  it("puts Discover first and warns about concentration for a site that lives on it", () => {
+    const items = buildInsights(withDiscover(1000, 0.62));
+    const discover = items.find((item) => item.id === "discover");
+    expect(discover?.title).toContain("80,0 %");
+    expect(discover?.body).toContain("principales");
+    expect(discover?.body).toContain("solo 3 páginas");
+    expect(items[0]?.id).toBe("discover");
+  });
+
+  it("keeps it as a minor finding when search is the main source", () => {
+    const items = buildInsights(withDiscover(20000, 0.2));
+    const discover = items.find((item) => item.id === "discover");
+    expect(discover?.weight).toBeLessThan(60);
+    expect(discover?.body).not.toContain("solo 3 páginas");
+  });
+});
+
 describe("silverLining", () => {
   it("finds something encouraging even when clicks fall", () => {
     const worse = {
