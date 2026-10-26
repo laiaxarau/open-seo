@@ -9,7 +9,12 @@ import {
   draftWithAi,
   type AiWho,
 } from "@/custom/reporting/server/aiDraft";
-import { getReport, updateReport } from "@/custom/reporting/server/reportingDb";
+import {
+  addTrendsCost,
+  getReport,
+  updateReport,
+} from "@/custom/reporting/server/reportingDb";
+import { collectReportTrends } from "@/custom/reporting/server/trends";
 import type { ReportNotes } from "@/custom/reporting/types";
 
 const LOCK_SECONDS = 600;
@@ -36,11 +41,19 @@ export async function prepareReportWithAi(
     expirationTtl: LOCK_SECONDS,
   });
   try {
+    // Real data first: what Google Trends says about the searches behind the
+    // falls, so the AI can argue with it. It is billed apart from the AI.
+    const trends = await collectReportTrends(report, who);
+    if (trends.calls > 0) {
+      await addTrendsCost(reportId, trends.costEur, trends.calls).catch(
+        () => undefined,
+      );
+    }
     // Independent of each other: the summary reads the figures, the analysis
     // reads the pages. Run together to halve the wait.
     const [drafted, analysed] = await Promise.all([
-      draftWithAi(report, who),
-      analyzeWithAi(report, report.snapshot.siteUrl, who),
+      draftWithAi(report, who, trends.lines),
+      analyzeWithAi(report, report.snapshot.siteUrl, who, trends.lines),
     ]);
     if (!drafted.ok && !analysed.ok) {
       console.error("[report-prepare] both AI calls failed", {
@@ -54,6 +67,7 @@ export async function prepareReportWithAi(
       };
     }
     let notes: ReportNotes = report.notes;
+    if (trends.lines.length > 0) notes = { ...notes, trends: trends.lines };
     let costEur = 0;
     if (drafted.ok) {
       costEur += drafted.costEur;

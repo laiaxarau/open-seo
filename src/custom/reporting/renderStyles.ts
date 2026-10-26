@@ -1030,4 +1030,11 @@ details.op>summary{break-after:avoid;padding:8px 0 6px}
 .catf button.on{background:var(--ink);border-color:var(--ink);color:#fff}
 .catf button.on small{color:#ff8da1}
 @media print{.catf{display:none}.cat{padding:2px 9px;font-size:7.5pt}.ith{font-size:11pt}}
+/* ---- v28: Google Trends data in the diagnoses ---- */
+.gt{display:flex;flex-wrap:wrap;gap:6px 8px;margin:8px 0 10px}
+.gtc{display:inline-flex;gap:7px;align-items:baseline;padding:4px 11px;border:1px solid var(--line);border-radius:999px;background:#fff;font-size:12.5px;color:var(--ink2)}
+.gtc b{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--red)}
+.gtn{margin:14px 0 0;font-size:12.5px;color:var(--muted)}
+.gtn b{color:var(--red)}
+@media print{.gtc{font-size:8pt;padding:2px 8px}.gtn{font-size:8pt}}
 `;

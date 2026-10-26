@@ -103,6 +103,9 @@ function ReportRow({
           {report.aiCalls > 0
             ? ` · IA: ${euroFormat.format(report.aiCostEur)}`
             : ""}
+          {report.trendsCalls > 0
+            ? ` · Google Trends: ${euroFormat.format(report.trendsCostEur)}`
+            : ""}
         </p>
       </div>
       <span

@@ -181,6 +181,8 @@ const report: ReportFull = {
   createdBy: null,
   aiCostEur: 0,
   aiCalls: 0,
+  trendsCostEur: 0,
+  trendsCalls: 0,
   range: snapshot.range,
   snapshot,
   notes: { ...EMPTY_NOTES, message: "Hola </script><b>x</b>" },

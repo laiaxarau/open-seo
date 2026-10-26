@@ -27,6 +27,8 @@ type Row = {
   checks_json: string;
   ai_cost_eur: number | null;
   ai_calls: number | null;
+  trends_cost_eur: number | null;
+  trends_calls: number | null;
 };
 
 function parseJson<T>(text: string, fallback: T): T {
@@ -51,6 +53,8 @@ function summaryOf(row: Row, snapshot: ReportSnapshot): ReportSummary {
     range: snapshot.range,
     aiCostEur: row.ai_cost_eur ?? 0,
     aiCalls: row.ai_calls ?? 0,
+    trendsCostEur: row.trends_cost_eur ?? 0,
+    trendsCalls: row.trends_calls ?? 0,
   };
 }
 
@@ -335,5 +339,18 @@ export async function addAiCost(
     `UPDATE client_reports SET ai_cost_eur = ai_cost_eur + ?, ai_calls = ai_calls + 1 WHERE id = ?`,
   )
     .bind(costEur, reportId)
+    .run();
+}
+
+/** Adds what the Google Trends queries cost to the report's running total. */
+export async function addTrendsCost(
+  reportId: string,
+  costEur: number,
+  calls: number,
+): Promise<void> {
+  await env.DB.prepare(
+    `UPDATE client_reports SET trends_cost_eur = trends_cost_eur + ?, trends_calls = trends_calls + ? WHERE id = ?`,
+  )
+    .bind(costEur, calls, reportId)
     .run();
 }

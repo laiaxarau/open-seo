@@ -499,15 +499,33 @@ function Editor({
                   </Button>
                 </div>
               ) : null}
-              <p className="text-xs text-muted-foreground">
-                Coste de la IA en este informe:{" "}
-                <strong className="text-foreground">
-                  {euro(report.aiCostEur)}
-                </strong>{" "}
-                ({report.aiCalls}{" "}
-                {report.aiCalls === 1 ? "llamada" : "llamadas"}
-                ).
-              </p>
+              <div className="space-y-0.5 text-xs text-muted-foreground">
+                <p className="font-medium text-foreground">
+                  Coste de este informe
+                </p>
+                <p>
+                  IA (Anthropic):{" "}
+                  <strong className="text-foreground">
+                    {euro(report.aiCostEur)}
+                  </strong>{" "}
+                  ({report.aiCalls}{" "}
+                  {report.aiCalls === 1 ? "llamada" : "llamadas"})
+                </p>
+                <p>
+                  Google Trends (DataForSEO):{" "}
+                  <strong className="text-foreground">
+                    {euro(report.trendsCostEur)}
+                  </strong>{" "}
+                  ({report.trendsCalls}{" "}
+                  {report.trendsCalls === 1 ? "consulta" : "consultas"})
+                </p>
+                <p>
+                  Total:{" "}
+                  <strong className="text-foreground">
+                    {euro(report.aiCostEur + report.trendsCostEur)}
+                  </strong>
+                </p>
+              </div>
             </CardContent>
           </Card>
 

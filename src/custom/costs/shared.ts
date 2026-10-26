@@ -37,6 +37,7 @@ const FEATURE_LABELS_ES: Record<string, string> = {
   agent: "Agente SAM",
   openrouter: "IA de OpenRouter (investigación de marca y asistente)",
   "report-ai": "IA de los informes (Anthropic)",
+  "report-trends": "Google Trends de los informes (DataForSEO)",
 };
 
 export function costFeatureLabel(feature: string): string {

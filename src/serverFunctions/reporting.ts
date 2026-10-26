@@ -30,7 +30,22 @@ import { requireProjectContext } from "@/serverFunctions/middleware";
 const projectInput = z.object({ projectId: z.string().min(1) });
 const reportInput = projectInput.extend({ reportId: z.string().min(1) });
 
+const trendsSchema = z
+  .array(
+    z.object({
+      query: z.string().max(200),
+      now: z.number(),
+      before: z.number().nullable(),
+      change: z.number().nullable(),
+      from: z.string().max(20),
+      to: z.string().max(20),
+      fetchedAt: z.string().max(40),
+    }),
+  )
+  .max(30);
+
 const notesSchema = z.object({
+  trends: trendsSchema.default([]),
   message: z.string().max(4000),
   sectionNotes: z.record(z.string(), z.string().max(2000)),
   hidden: z.array(z.string().max(40)).max(80),

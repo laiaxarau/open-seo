@@ -320,6 +320,20 @@ export type ContentIdea = {
   result?: string;
 };
 
+/** What Google Trends says about one search: its average interest (0 to
+ *  100, relative to the highest point Google shows) in the period and in the
+ *  one before. Real data, queried through DataForSEO. */
+export type TrendLine = {
+  query: string;
+  now: number;
+  before: number | null;
+  /** now / before - 1, or null when there is nothing to compare with. */
+  change: number | null;
+  from: string;
+  to: string;
+  fetchedAt: string;
+};
+
 /** What the consultant adds on top of the numbers. */
 export type ReportNotes = {
   /** Personal message after the cover, in the consultant's voice. */
@@ -338,6 +352,8 @@ export type ReportNotes = {
   opportunityIdeas: OpportunityIdea[];
   /** AI ideas for new content (reviewed by the consultant). */
   contentIdeas: ContentIdea[];
+  /** What Google Trends said about the searches behind the falls. */
+  trends: TrendLine[];
 };
 
 export const EMPTY_NOTES: ReportNotes = {
@@ -349,6 +365,7 @@ export const EMPTY_NOTES: ReportNotes = {
   titleIdeas: [],
   opportunityIdeas: [],
   contentIdeas: [],
+  trends: [],
 };
 
 /** The sections a report can show, in order. */
@@ -476,6 +493,9 @@ export type ReportSummary = {
   /** What the AI has cost for this report, in euros, and how many calls. */
   aiCostEur: number;
   aiCalls: number;
+  /** What the Google Trends queries cost (DataForSEO), apart from the AI. */
+  trendsCostEur: number;
+  trendsCalls: number;
 };
 
 export type ReportFull = ReportSummary & {

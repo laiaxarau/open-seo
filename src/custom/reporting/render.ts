@@ -1266,6 +1266,9 @@ function pagesBlock(report: ReportFull): string {
 function diagnosisBlock(report: ReportFull): string {
   const items = report.notes.diagnoses.filter((item) => item.text.trim());
   if (items.length === 0) return "";
+  const trendOf = new Map(
+    (report.notes.trends ?? []).map((line) => [line.query, line] as const),
+  );
   const cards = items
     .map((item) => {
       const row = report.snapshot.pageLosers.find(
@@ -1274,11 +1277,25 @@ function diagnosisBlock(report: ReportFull): string {
       const meta = row
         ? `<div class="meta">${signedNum(row.clicksDelta)} clics (${num(row.prevClicks)} → ${num(row.clicks)})</div>`
         : "";
+      const trendChips = (row?.queries ?? [])
+        .flatMap((move) => {
+          const line = trendOf.get(move.query);
+          return line ? [line] : [];
+        })
+        .map(
+          (line) =>
+            `<span class="gtc"><b>Google Trends</b>«${esc(line.query)}»: ${
+              line.change === null
+                ? `interés ${one.format(line.now)} de 100`
+                : `<span class="dl ${line.change > 0 ? "up" : line.change < 0 ? "down" : "flat"}">${line.change > 0 ? "▲" : line.change < 0 ? "▼" : "="} ${signedPctText(line.change)}</span> de interés`
+            }</span>`,
+        )
+        .join("");
       const fixes = item.fixes
         .filter((fix) => fix.trim())
         .map((fix) => `<li>${inline(fix)}</li>`)
         .join("");
-      return `<article class="dgc"><div class="u">${pageLink(item.url)}</div>${meta}<p>${inline(item.text)}</p>${fixes ? `<h3>Actuaciones previstas</h3><ul class="fix">${fixes}</ul>` : ""}</article>`;
+      return `<article class="dgc"><div class="u">${pageLink(item.url)}</div>${meta}${trendChips ? `<div class="gt">${trendChips}</div>` : ""}<p>${inline(item.text)}</p>${fixes ? `<h3>Actuaciones previstas</h3><ul class="fix">${fixes}</ul>` : ""}</article>`;
     })
     .join("");
   return block(
@@ -1286,8 +1303,15 @@ function diagnosisBlock(report: ReportFull): string {
     "diagnostico",
     "Diagnóstico de las páginas que pierden tráfico",
     "Se ha revisado cada página y las búsquedas que más han caído. Todas tienen recuperación posible: cuentan ya con historial en Google y solo requieren refuerzo.",
-    `<div class="dg">${cards}</div>`,
+    `<div class="dg">${cards}</div>${trendsNote(report)}`,
   );
+}
+
+/** Says out loud that the interest figures are real Google Trends data. */
+function trendsNote(report: ReportFull): string {
+  const lines = report.notes.trends ?? [];
+  if (lines.length === 0) return "";
+  return `<p class="gtn"><b>Google Trends.</b> Los datos de interés son reales: es el interés relativo (de 0 a 100) de cada búsqueda en Google en España, comparando este periodo con el anterior, consultado el ${day(lines[0].fetchedAt.slice(0, 10))}. No son volúmenes de búsqueda.</p>`;
 }
 
 // --------------------------------------------------------------- topics
@@ -1826,9 +1850,6 @@ function issueCard(item: IssueAgg, pageCount: number): string {
         `<a class="pill" href="${esc(url)}" target="_blank" rel="noopener noreferrer" title="Ver una página de ejemplo con este problema: ${esc(pathOf(url))}">${esc(type)}</a>`,
     )
     .join("");
-  const where =
-    pageCount > 1 ? `Afecta a ${item.pages.size} de ${pageCount} páginas` : "";
-  const meta = esc(where);
   const sorted = [...item.elements].sort(
     (x, y) => STATUS_RANK[x.status] - STATUS_RANK[y.status],
   );
@@ -1857,7 +1878,7 @@ function issueCard(item: IssueAgg, pageCount: number): string {
         `<a class="lk" href="${esc(source.url)}" target="_blank" rel="noopener noreferrer">${esc(source.label)} ↗</a>`,
     )
     .join(" · ");
-  return `<article class="is" data-cat="${esc(item.category)}"><div class="ictop"><span class="cat">${esc(item.category)}</span><span class="ik ${item.kind}">${item.kind === "fail" ? "A corregir" : "A mejorar"}</span>${groupPoints(item) > 0 ? `<span class="ip">+${one.format(groupPoints(item))} pts</span>` : ""}</div><h4 class="ith">${esc(item.title)}</h4>${pills ? `<div class="pills">${pills}</div>` : ""}${meta ? `<div class="im">${meta}</div>` : ""}${item.detail ? `<p>${withLinks(item.detail)}</p>` : ""}${item.evidence ? `<p class="ev">${withLinks(item.evidence)}</p>` : ""}${relatedBlock(item)}${elements ? `${legend}<div class="els">${elements}</div>` : ""}${sources ? `<div class="src">Documentación oficial: ${sources}</div>` : ""}</article>`;
+  return `<article class="is" data-cat="${esc(item.category)}"><div class="ictop"><span class="cat">${esc(item.category)}</span><span class="ik ${item.kind}">${item.kind === "fail" ? "A corregir" : "A mejorar"}</span>${groupPoints(item) > 0 ? `<span class="ip">+${one.format(groupPoints(item))} pts</span>` : ""}</div><h4 class="ith">${esc(item.title)}</h4>${pills ? `<div class="pills">${pills}</div>` : ""}${item.detail ? `<p>${withLinks(item.detail)}</p>` : ""}${item.evidence ? `<p class="ev">${withLinks(item.evidence)}</p>` : ""}${relatedBlock(item)}${elements ? `${legend}<div class="els">${elements}</div>` : ""}${sources ? `<div class="src">Documentación oficial: ${sources}</div>` : ""}</article>`;
 }
 
 /** The issues of a set of pages: first what to fix, then what to improve. */
