@@ -334,6 +334,46 @@ export type TrendLine = {
   fetchedAt: string;
 };
 
+/** A feature of Google's results page that can take the click away. */
+export type SerpFeatureType =
+  | "ai_overview"
+  | "featured_snippet"
+  | "answer_box"
+  | "people_also_ask"
+  | "video"
+  | "shopping"
+  | "local_pack"
+  | "top_stories"
+  | "images"
+  | "knowledge_graph"
+  | "paid";
+
+/** What Google's results page showed for one search (a live query through
+ *  DataForSEO, on desktop, in Spain): where the site is, what else is on the
+ *  page and who is ahead of it. */
+export type SerpLine = {
+  query: string;
+  /** The site's best organic position on the first page, or null. */
+  ownPosition: number | null;
+  features: {
+    type: SerpFeatureType;
+    /** Place on the page, counting every block. */
+    position: number;
+    /** It sits above the site's result (or the site is not on the page). */
+    above: boolean;
+  }[];
+  /** Other sites ranking before the site's result (up to 3). */
+  ahead: string[];
+  fetchedAt: string;
+};
+
+/** How much of the lost clicks the searches asked about explain. */
+export type SearchCoverage = {
+  lostClicks: number;
+  trends: { queries: number; share: number | null };
+  serp: { queries: number; share: number | null };
+};
+
 /** What the consultant adds on top of the numbers. */
 export type ReportNotes = {
   /** Personal message after the cover, in the consultant's voice. */
@@ -354,6 +394,10 @@ export type ReportNotes = {
   contentIdeas: ContentIdea[];
   /** What Google Trends said about the searches behind the falls. */
   trends: TrendLine[];
+  /** What Google's results page showed for the key searches. */
+  serp: SerpLine[];
+  /** How much of the fall the searches asked about explain. */
+  coverage: SearchCoverage | null;
 };
 
 export const EMPTY_NOTES: ReportNotes = {
@@ -366,6 +410,8 @@ export const EMPTY_NOTES: ReportNotes = {
   opportunityIdeas: [],
   contentIdeas: [],
   trends: [],
+  serp: [],
+  coverage: null,
 };
 
 /** The sections a report can show, in order. */
@@ -378,6 +424,7 @@ export const REPORT_SECTIONS = [
   { id: "consultas", label: "Búsquedas" },
   { id: "marca", label: "Búsquedas de marca" },
   { id: "tendencias", label: "Interés en Google Trends" },
+  { id: "serp", label: "Funciones de la página de resultados" },
   { id: "reparto", label: "De dónde vienen los clics" },
   { id: "semana", label: "Distribución semanal" },
   { id: "oportunidades", label: "Oportunidades de crecimiento" },
@@ -429,6 +476,7 @@ export const REPORT_TABS: {
       { id: "marca", label: "Búsquedas de marca" },
       { id: "consultas", label: "Búsquedas que mueven el tráfico" },
       { id: "tendencias", label: "Interés en Google Trends" },
+      { id: "serp", label: "Funciones de la página de resultados" },
     ],
   },
   {
@@ -498,6 +546,9 @@ export type ReportSummary = {
   /** What the Google Trends queries cost (DataForSEO), apart from the AI. */
   trendsCostEur: number;
   trendsCalls: number;
+  /** What the Google results page queries cost (DataForSEO). */
+  serpCostEur: number;
+  serpCalls: number;
 };
 
 export type ReportFull = ReportSummary & {

@@ -17,6 +17,7 @@ import {
 } from "@/custom/reporting/insights";
 import { looksUnreadable } from "@/custom/reporting/auditQuality";
 import { parseJson } from "@/custom/reporting/jsonLoose";
+import { SERP_LABEL } from "@/custom/reporting/serpLabels";
 import { buildVerdict } from "@/custom/reporting/narrative";
 import { addAiCost } from "@/custom/reporting/server/reportingDb";
 import type {
@@ -26,6 +27,7 @@ import type {
   ReportFull,
   TitleIdea,
   TrendLine,
+  SerpLine,
 } from "@/custom/reporting/types";
 import { ProjectContextService } from "@/server/features/project-context/services/ProjectContextService";
 import { getOptionalEnvValue } from "@/server/lib/runtime-env";
@@ -259,6 +261,7 @@ Enlaces: cuando aporten (explicar un concepto, respaldar una recomendación o po
 Búsquedas y páginas: cada vez que menciones una búsqueda (consulta) escríbela entre comillas angulares, por ejemplo «cuadrantes dentales», y no pongas comillas a otras cosas. Cada vez que nombres una página concreta, enlázala con [nombre corto de la página](url) usando la dirección completa («url») que aparece en los datos, tal cual; nunca enlaces una dirección que no esté en los datos. Si una página ya se enlazó antes en el mismo texto, no la enlaces otra vez.
 Marca: NUNCA concluyas que el tráfico de marca «no capta clientes nuevos», que «solo viene de quien ya conoce la marca» ni que es menos valioso. Un aumento de las búsquedas de marca suele indicar que más personas han descubierto o se han informado sobre la marca en otros canales (asistentes de IA como ChatGPT o Gemini, redes, prensa, recomendaciones, publicidad) y después la buscan en Google; es una señal de notoriedad y de que el trabajo de marca y visibilidad en IA funciona. Preséntalo como hipótesis razonable y prudente («probablemente», «es coherente con»), nunca como hecho, porque Search Console no dice de dónde viene el interés. Distingue, eso sí, el tráfico de marca (notoriedad) del tráfico sin marca (visibilidad orgánica por temas).
 Google Trends: si los datos traen «tendencias_google_trends», úsalos para explicar por qué cae una página (la demanda baja, se mantiene o sube) y SIEMPRE di que el dato es de Google Trends, por ejemplo «según Google Trends, el interés por «X» baja un 35 % frente al periodo anterior». Es interés relativo (de 0 a 100), no volumen de búsquedas. Si el interés se mantiene o sube mientras caen los clics, la causa no es la demanda sino el posicionamiento: dilo. Nunca inventes datos de Trends: si una búsqueda no tiene dato, no afirmes nada sobre su tendencia. Un «cambioPorcentual» nulo significa que Google Trends no tiene datos suficientes de ese periodo (búsqueda de poco volumen): no concluyas nada de ella y, si es relevante, dilo con claridad.
+Página de resultados de Google: si los datos traen «funciones_pagina_resultados», úsalos para explicar los clics que bajan con las posiciones intactas: respuestas de IA, fragmentos destacados, vídeos, compras o anuncios por encima del resultado de la web se llevan el clic aunque la posición no cambie. Di SIEMPRE que es un dato de la página de resultados de Google (consulta en vivo, ordenador, España) y que una página de resultados varía entre personas y días. Cita solo lo que traen los datos: nunca inventes funciones ni posiciones, y si una función no está por encima del resultado de la web, no la presentes como causa. Si te dan «porDelanteDeTi», puedes nombrar esos dominios como los que van por delante.
 Porcentajes: siempre que digas que algo «pasa de X a Y», «sube de X a Y», «baja de X a Y», «crece de X a Y» o similar, añade enseguida entre paréntesis el porcentaje de subida o bajada, por ejemplo «pasa de 1.200 a 1.500 clics (+25 %)». Usa el campo cambioPorcentual (o parecido) de los datos: ya está calculado, no lo recalcules de cabeza. Si un dato no lo trae, calcúlalo con cuidado y redondea a un decimal. Escribe los números en formato español (1.234,5).`;
 
 // ------------------------------------------------------------- writing
@@ -292,6 +295,21 @@ function pct(now: number, before: number | null): number | null {
   return Math.round(((now - before) / before) * 1000) / 10;
 }
 
+/** What Google's results page showed, in the words of the data given to the AI. */
+const serpForAi = (serp: SerpLine[]) =>
+  serp.map((line) => ({
+    busqueda: line.query,
+    tuPosicion: line.ownPosition,
+    funciones: line.features.map((item) => ({
+      tipo: SERP_LABEL[item.type],
+      posicionEnLaPagina: item.position,
+      porEncimaDeTuResultado: item.above,
+    })),
+    porDelanteDeTi: line.ahead,
+    fuente:
+      "Consulta en vivo a la página de resultados de Google (DataForSEO), ordenador, España",
+  }));
+
 /** What Google Trends said, in the words of the data given to the AI. */
 const trendsForAi = (trends: TrendLine[]) =>
   trends.map((line) => ({
@@ -304,7 +322,12 @@ const trendsForAi = (trends: TrendLine[]) =>
       "Google Trends (vía DataForSEO): interés relativo de 0 a 100, España",
   }));
 
-function brief(report: ReportFull, business: string, trends: TrendLine[] = []) {
+function brief(
+  report: ReportFull,
+  business: string,
+  trends: TrendLine[] = [],
+  serp: SerpLine[] = [],
+) {
   const { snapshot } = report;
   const readableAudits = (snapshot.audits ?? []).filter(
     (audit) => !looksUnreadable(audit),
@@ -457,6 +480,7 @@ function brief(report: ReportFull, business: string, trends: TrendLine[] = []) {
     sitemap_y_cobertura: snapshot.health ?? undefined,
     tendencias_google_trends:
       trends.length > 0 ? trendsForAi(trends) : undefined,
+    funciones_pagina_resultados: serp.length > 0 ? serpForAi(serp) : undefined,
     auditoria_tecnica: readableAudits.length
       ? readableAudits.map((audit) => ({
           tipologia: audit.type,
@@ -485,7 +509,7 @@ function brief(report: ReportFull, business: string, trends: TrendLine[] = []) {
           ),
         }
       : undefined,
-    hallazgos_calculados: buildInsights(snapshot, trends)
+    hallazgos_calculados: buildInsights(snapshot, trends, serp)
       .slice(0, 9)
       .map((item) => ({ titulo: item.title, detalle: item.body })),
   };
@@ -495,6 +519,7 @@ export async function draftWithAi(
   report: ReportFull,
   who: AiWho,
   trends: TrendLine[] = [],
+  serp: SerpLine[] = [],
 ): Promise<
   | { ok: true; draft: AiDraft; costEur: number }
   | { ok: false; reason: "no_key" | "failed"; detail?: string }
@@ -503,7 +528,7 @@ export async function draftWithAi(
   const answer = await callClaude({
     deep: true,
     system: WRITE_SYSTEM,
-    user: `Datos del informe:\n${JSON.stringify(brief(report, business, trends))}`,
+    user: `Datos del informe:\n${JSON.stringify(brief(report, business, trends, serp))}`,
     maxTokens: 16000,
     report,
     who,
@@ -583,6 +608,7 @@ export async function analyzeWithAi(
   siteUrl: string,
   who: AiWho,
   trends: TrendLine[] = [],
+  serp: SerpLine[] = [],
 ): Promise<
   | ({ ok: true; costEur: number } & AiAnalysis)
   | { ok: false; reason: "no_key" | "failed" | "nothing"; detail?: string }
@@ -695,6 +721,7 @@ export async function analyzeWithAi(
     paginas_existentes: existingPages,
     tendencias_google_trends:
       trends.length > 0 ? trendsForAi(trends) : undefined,
+    funciones_pagina_resultados: serp.length > 0 ? serpForAi(serp) : undefined,
   };
 
   const [opportunityAnswer, strategyAnswer] = await Promise.all([

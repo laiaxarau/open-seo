@@ -1,10 +1,11 @@
 // The arithmetic of Google Trends, apart from the network (so it can be
 // tested): the interest of a search in the period and in the one before, and
 // the choice of searches worth asking about.
+import { pickLosingQueries } from "@/custom/reporting/server/searchSelection";
 import type { ReportFull, TrendLine } from "@/custom/reporting/types";
 
-/** At most two requests (ten searches) for each report. */
-const MAX_KEYWORDS = 10;
+/** At most three requests (fifteen searches) for each report. */
+const MAX_KEYWORDS = 15;
 
 type TrendPoint = {
   date_from?: string;
@@ -63,16 +64,16 @@ export function summariseTrend(
 /** The searches worth asking Google Trends about. Google Trends only has
  *  figures for searches with enough volume and scales each request to its
  *  biggest term, so: the topics of the site come first (broad terms it
- *  knows), then the searches that explain the pages that fall, and the list is
- *  sorted by volume so each request of five holds terms of a similar size.
- *  Brand searches are left out (their interest says nothing about the topic). */
-export function trendKeywords(report: ReportFull): string[] {
+ *  knows), then the searches that lose most clicks until they explain enough
+ *  of the fall, and the list is sorted by volume so each request of five
+ *  holds terms of a similar size. */
+export function trendSelection(report: ReportFull): {
+  keywords: string[];
+  lostClicks: number;
+  share: number | null;
+  queries: number;
+} {
   const { snapshot } = report;
-  const brand = new Set(
-    (snapshot.queryRows ?? [])
-      .filter((row) => row.brand)
-      .map((row) => row.query),
-  );
   const volume = new Map<string, number>();
   for (const row of snapshot.queryRows ?? []) {
     volume.set(row.query, row.impressions);
@@ -80,25 +81,25 @@ export function trendKeywords(report: ReportFull): string[] {
   for (const topic of snapshot.topics ?? []) {
     volume.set(topic.label, topic.impressions);
   }
-  const picked: string[] = [];
-  const add = (query: string | undefined) => {
-    const keyword = query?.trim();
-    if (
-      keyword &&
-      keyword.length <= 100 &&
-      !brand.has(keyword) &&
-      !picked.includes(keyword) &&
-      picked.length < MAX_KEYWORDS
-    ) {
-      picked.push(keyword);
-    }
+  const topics = (snapshot.topics ?? [])
+    .slice(0, 3)
+    .map((topic) => topic.label.trim())
+    .filter((label) => label.length > 0 && label.length <= 100);
+  const selection = pickLosingQueries(
+    report,
+    Math.max(0, MAX_KEYWORDS - topics.length),
+  );
+  const keywords = [
+    ...new Set([...topics, ...selection.picks.map((item) => item.query)]),
+  ].slice(0, MAX_KEYWORDS);
+  keywords.sort((x, y) => (volume.get(y) ?? 0) - (volume.get(x) ?? 0));
+  return {
+    keywords,
+    lostClicks: selection.lostClicks,
+    share: selection.share,
+    queries: selection.picks.length,
   };
-  for (const topic of (snapshot.topics ?? []).slice(0, 3)) add(topic.label);
-  for (const loser of snapshot.pageLosers
-    .filter((row) => row.clicksDelta <= -10)
-    .slice(0, 3)) {
-    for (const move of (loser.queries ?? []).slice(0, 2)) add(move.query);
-  }
-  for (const row of (snapshot.queryLosers ?? []).slice(0, 6)) add(row.key);
-  return picked.sort((x, y) => (volume.get(y) ?? 0) - (volume.get(x) ?? 0));
 }
+
+export const trendKeywords = (report: ReportFull): string[] =>
+  trendSelection(report).keywords;

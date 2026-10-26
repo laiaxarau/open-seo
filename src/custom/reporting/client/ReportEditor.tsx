@@ -520,9 +520,21 @@ function Editor({
                   {report.trendsCalls === 1 ? "consulta" : "consultas"})
                 </p>
                 <p>
+                  Página de resultados de Google (DataForSEO):{" "}
+                  <strong className="text-foreground">
+                    {euro(report.serpCostEur)}
+                  </strong>{" "}
+                  ({report.serpCalls}{" "}
+                  {report.serpCalls === 1 ? "consulta" : "consultas"})
+                </p>
+                <p>
                   Total:{" "}
                   <strong className="text-foreground">
-                    {euro(report.aiCostEur + report.trendsCostEur)}
+                    {euro(
+                      report.aiCostEur +
+                        report.trendsCostEur +
+                        report.serpCostEur,
+                    )}
                   </strong>
                 </p>
               </div>

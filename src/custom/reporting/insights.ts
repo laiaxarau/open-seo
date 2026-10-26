@@ -7,9 +7,12 @@
 import { integer } from "@/custom/radar/format";
 import type { GoogleUpdate } from "@/custom/radar/googleUpdates";
 import type { DailyPoint } from "@/custom/radar/radarAnalysis";
+import { featuresAbove, SERP_LABEL } from "@/custom/reporting/serpLabels";
 import type {
   ChangeLine,
   ReportSnapshot,
+  SerpFeatureType,
+  SerpLine,
   TrendLine,
 } from "@/custom/reporting/types";
 
@@ -97,6 +100,61 @@ function trendSentence(summary: { median: number; count: number }): string {
     return `Google Trends muestra un descenso moderado del interés (${signedPct(summary.median)}) en ${searches}: la demanda explica solo una parte de la caída (dato real de Google Trends).`;
   }
   return `Google Trends no confirma una caída de la demanda: el interés por ${searches} se mantiene (${signedPct(summary.median)}), así que la causa está más en el posicionamiento de esas búsquedas (dato real de Google Trends).`;
+}
+
+/** What the results page of the key searches showed, in a few figures. */
+function serpSummary(serp: SerpLine[]) {
+  const counts = new Map<string, number>();
+  let flagged = 0;
+  for (const line of serp) {
+    const above = featuresAbove(line);
+    if (above.length > 0) flagged += 1;
+    for (const type of above) {
+      counts.set(type, (counts.get(type) ?? 0) + 1);
+    }
+  }
+  return {
+    total: serp.length,
+    flagged,
+    counts: [...counts.entries()].sort((a, b) => b[1] - a[1]),
+  };
+}
+
+/** The sentence that says what Google's results page showed, naming the source. */
+function serpSentence(serp: SerpLine[]): string {
+  const summary = serpSummary(serp);
+  if (summary.total === 0) return "";
+  if (summary.flagged === 0) {
+    return `En ninguna de las ${summary.total} búsquedas clave consultadas Google muestra una función (respuesta de IA, vídeos, fragmento destacado…) por encima del resultado de la web (dato real de la página de resultados de Google).`;
+  }
+  const list = summary.counts
+    .slice(0, 3)
+    .map(
+      ([type, count]) =>
+        `${SERP_LABEL[type as SerpFeatureType].toLowerCase()} en ${count}`,
+    )
+    .join(", ");
+  return `En ${summary.flagged} de las ${summary.total} búsquedas clave consultadas Google muestra por encima del resultado de la web: ${list} (dato real de la página de resultados de Google: consulta en vivo, ordenador, España).`;
+}
+
+function serpInsight(serp: SerpLine[]): Insight | null {
+  const summary = serpSummary(serp);
+  if (summary.total === 0) return null;
+  return {
+    id: "serp",
+    topic: "Página de resultados",
+    tone: summary.flagged / summary.total >= 0.4 ? "warn" : "info",
+    weight: 80,
+    title:
+      summary.flagged > 0
+        ? `Google muestra funciones por encima de la web en ${summary.flagged} de ${summary.total} búsquedas clave`
+        : "Google no muestra funciones por encima de la web en las búsquedas clave",
+    body: `${serpSentence(serp)}${summary.flagged > 0 ? " Estas funciones se llevan clics aunque la posición no cambie." : ""}`,
+    stats: summary.counts.slice(0, 3).map(([type, count]) => ({
+      label: SERP_LABEL[type as SerpFeatureType],
+      value: `${count} de ${summary.total}`,
+    })),
+  };
 }
 
 export function pathOf(url: string): string {
@@ -252,6 +310,7 @@ export function contributions(snapshot: ReportSnapshot): Contribution[] {
 function trafficInsight(
   snapshot: ReportSnapshot,
   trends: TrendLine[] = [],
+  serp: SerpLine[] = [],
 ): Insight | null {
   const { totals, prevTotals } = snapshot;
   if (!snapshot.period.comparable || prevTotals.impressions <= 0) return null;
@@ -291,7 +350,7 @@ function trafficInsight(
       tone: "warn",
       weight: 95,
       title: "La web se muestra igual o más, pero se clica menos",
-      body: `Las impresiones ${impressions > 0 ? `suben un ${pct(impressions)}` : "se mantienen"} y los clics bajan un ${pct(clicks)}. Suele indicar un problema de atractivo del resultado (título, descripción) o que Google muestra por encima respuestas de IA, vídeos u otros recuadros que se llevan el clic.`,
+      body: `Las impresiones ${impressions > 0 ? `suben un ${pct(impressions)}` : "se mantienen"} y los clics bajan un ${pct(clicks)}. Suele indicar un problema de atractivo del resultado (título, descripción) o que Google muestra por encima respuestas de IA, vídeos u otros recuadros que se llevan el clic.${serp.length > 0 ? ` ${serpSentence(serp)}` : ""}`,
     };
   }
   if (clicks <= -0.05 && positionDiff <= -0.3) {
@@ -771,6 +830,7 @@ export function highlights(snapshot: ReportSnapshot): string[] {
 export function buildInsights(
   snapshot: ReportSnapshot,
   trends: TrendLine[] = [],
+  serp: SerpLine[] = [],
 ): Insight[] {
   const loser = [...snapshot.pageLosers].sort(
     (a, b) => a.clicksDelta - b.clicksDelta,
@@ -779,7 +839,8 @@ export function buildInsights(
     (a, b) => b.clicksDelta - a.clicksDelta,
   )[0];
   const all = [
-    trafficInsight(snapshot, trends),
+    trafficInsight(snapshot, trends, serp),
+    serpInsight(serp),
     updateInsight(snapshot),
     sourceInsight(snapshot),
     pageInsight(loser, "loser", trends),

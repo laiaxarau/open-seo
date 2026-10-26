@@ -106,6 +106,9 @@ function ReportRow({
           {report.trendsCalls > 0
             ? ` · Google Trends: ${euroFormat.format(report.trendsCostEur)}`
             : ""}
+          {report.serpCalls > 0
+            ? ` · Página de resultados: ${euroFormat.format(report.serpCostEur)}`
+            : ""}
         </p>
       </div>
       <span

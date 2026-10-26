@@ -29,6 +29,8 @@ type Row = {
   ai_calls: number | null;
   trends_cost_eur: number | null;
   trends_calls: number | null;
+  serp_cost_eur: number | null;
+  serp_calls: number | null;
 };
 
 function parseJson<T>(text: string, fallback: T): T {
@@ -55,6 +57,8 @@ function summaryOf(row: Row, snapshot: ReportSnapshot): ReportSummary {
     aiCalls: row.ai_calls ?? 0,
     trendsCostEur: row.trends_cost_eur ?? 0,
     trendsCalls: row.trends_calls ?? 0,
+    serpCostEur: row.serp_cost_eur ?? 0,
+    serpCalls: row.serp_calls ?? 0,
   };
 }
 
@@ -350,6 +354,19 @@ export async function addTrendsCost(
 ): Promise<void> {
   await env.DB.prepare(
     `UPDATE client_reports SET trends_cost_eur = trends_cost_eur + ?, trends_calls = trends_calls + ? WHERE id = ?`,
+  )
+    .bind(costEur, calls, reportId)
+    .run();
+}
+
+/** Adds what the Google results page queries cost to the report's total. */
+export async function addSerpCost(
+  reportId: string,
+  costEur: number,
+  calls: number,
+): Promise<void> {
+  await env.DB.prepare(
+    `UPDATE client_reports SET serp_cost_eur = serp_cost_eur + ?, serp_calls = serp_calls + ? WHERE id = ?`,
   )
     .bind(costEur, calls, reportId)
     .run();

@@ -7,7 +7,7 @@ import { getUsdEurRate } from "@/custom/costs/server/fx";
 import type { AiWho } from "@/custom/reporting/server/aiDraft";
 import {
   summariseTrend,
-  trendKeywords,
+  trendSelection,
   type TrendGraph,
 } from "@/custom/reporting/server/trendsMath";
 import type { ReportFull, TrendLine } from "@/custom/reporting/types";
@@ -31,6 +31,8 @@ type TrendsTask = DataforseoTaskLike & {
 
 export type TrendsRun = {
   lines: TrendLine[];
+  /** How much of the fall the searches asked about explain. */
+  coverage: { lostClicks: number; queries: number; share: number | null };
   costEur: number;
   calls: number;
   /** Why nothing was asked, to show on screen. */
@@ -41,9 +43,21 @@ export async function collectReportTrends(
   report: ReportFull,
   who: AiWho,
 ): Promise<TrendsRun> {
-  const keywords = trendKeywords(report);
+  const selection = trendSelection(report);
+  const keywords = selection.keywords;
+  const coverage = {
+    lostClicks: selection.lostClicks,
+    queries: selection.queries,
+    share: selection.share,
+  };
   if (keywords.length === 0) {
-    return { lines: [], costEur: 0, calls: 0, skipped: "sin búsquedas" };
+    return {
+      lines: [],
+      coverage,
+      costEur: 0,
+      calls: 0,
+      skipped: "sin búsquedas",
+    };
   }
   const { snapshot } = report;
   const comparable = snapshot.period.comparable;
@@ -111,6 +125,7 @@ export async function collectReportTrends(
   const fx = costUsd > 0 ? await getUsdEurRate().catch(() => null) : null;
   return {
     lines,
+    coverage,
     costEur: costUsd * (fx?.rate ?? 0.92),
     calls,
     ...(calls === 0 ? { skipped: "no disponible" } : {}),

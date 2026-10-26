@@ -44,8 +44,50 @@ const trendsSchema = z
   )
   .max(30);
 
+const serpSchema = z
+  .array(
+    z.object({
+      query: z.string().max(200),
+      ownPosition: z.number().nullable(),
+      features: z
+        .array(
+          z.object({
+            type: z.enum([
+              "ai_overview",
+              "featured_snippet",
+              "answer_box",
+              "people_also_ask",
+              "video",
+              "shopping",
+              "local_pack",
+              "top_stories",
+              "images",
+              "knowledge_graph",
+              "paid",
+            ]),
+            position: z.number(),
+            above: z.boolean(),
+          }),
+        )
+        .max(20),
+      ahead: z.array(z.string().max(120)).max(5),
+      fetchedAt: z.string().max(40),
+    }),
+  )
+  .max(30);
+
+const coverageSchema = z
+  .object({
+    lostClicks: z.number(),
+    trends: z.object({ queries: z.number(), share: z.number().nullable() }),
+    serp: z.object({ queries: z.number(), share: z.number().nullable() }),
+  })
+  .nullable();
+
 const notesSchema = z.object({
   trends: trendsSchema.default([]),
+  serp: serpSchema.default([]),
+  coverage: coverageSchema.default(null),
   message: z.string().max(4000),
   sectionNotes: z.record(z.string(), z.string().max(2000)),
   hidden: z.array(z.string().max(40)).max(80),

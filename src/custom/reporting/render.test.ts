@@ -183,6 +183,8 @@ const report: ReportFull = {
   aiCalls: 0,
   trendsCostEur: 0,
   trendsCalls: 0,
+  serpCostEur: 0,
+  serpCalls: 0,
   range: snapshot.range,
   snapshot,
   notes: { ...EMPTY_NOTES, message: "Hola </script><b>x</b>" },

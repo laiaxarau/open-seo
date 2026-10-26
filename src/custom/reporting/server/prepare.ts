@@ -10,10 +10,12 @@ import {
   type AiWho,
 } from "@/custom/reporting/server/aiDraft";
 import {
+  addSerpCost,
   addTrendsCost,
   getReport,
   updateReport,
 } from "@/custom/reporting/server/reportingDb";
+import { collectSerpFeatures } from "@/custom/reporting/server/serpFeatures";
 import { collectReportTrends } from "@/custom/reporting/server/trends";
 import type { ReportNotes } from "@/custom/reporting/types";
 
@@ -43,7 +45,15 @@ export async function prepareReportWithAi(
   try {
     // Real data first: what Google Trends says about the searches behind the
     // falls, so the AI can argue with it. It is billed apart from the AI.
-    const trends = await collectReportTrends(report, who);
+    const [trends, serp] = await Promise.all([
+      collectReportTrends(report, who),
+      collectSerpFeatures(report, who),
+    ]);
+    if (serp.calls > 0) {
+      await addSerpCost(reportId, serp.costEur, serp.calls).catch(
+        () => undefined,
+      );
+    }
     if (trends.calls > 0) {
       await addTrendsCost(reportId, trends.costEur, trends.calls).catch(
         () => undefined,
@@ -52,8 +62,14 @@ export async function prepareReportWithAi(
     // Independent of each other: the summary reads the figures, the analysis
     // reads the pages. Run together to halve the wait.
     const [drafted, analysed] = await Promise.all([
-      draftWithAi(report, who, trends.lines),
-      analyzeWithAi(report, report.snapshot.siteUrl, who, trends.lines),
+      draftWithAi(report, who, trends.lines, serp.lines),
+      analyzeWithAi(
+        report,
+        report.snapshot.siteUrl,
+        who,
+        trends.lines,
+        serp.lines,
+      ),
     ]);
     if (!drafted.ok && !analysed.ok) {
       console.error("[report-prepare] both AI calls failed", {
@@ -68,6 +84,26 @@ export async function prepareReportWithAi(
     }
     let notes: ReportNotes = report.notes;
     if (trends.lines.length > 0) notes = { ...notes, trends: trends.lines };
+    if (serp.lines.length > 0) notes = { ...notes, serp: serp.lines };
+    if (trends.calls > 0 || serp.calls > 0) {
+      notes = {
+        ...notes,
+        coverage: {
+          lostClicks: Math.max(
+            trends.coverage.lostClicks,
+            serp.coverage.lostClicks,
+          ),
+          trends: {
+            queries: trends.coverage.queries,
+            share: trends.coverage.share,
+          },
+          serp: {
+            queries: serp.coverage.queries,
+            share: serp.coverage.share,
+          },
+        },
+      };
+    }
     let costEur = 0;
     if (drafted.ok) {
       costEur += drafted.costEur;

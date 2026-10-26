@@ -1037,4 +1037,8 @@ details.op>summary{break-after:avoid;padding:8px 0 6px}
 .gtn{margin:14px 0 0;font-size:12.5px;color:var(--muted)}
 .gtn b{color:var(--red)}
 @media print{.gtc{font-size:8pt;padding:2px 8px}.gtn{font-size:8pt}}
+/* ---- v29: Google results page features ---- */
+.sfp{display:inline-block;margin:2px 5px 2px 0;padding:2px 10px;border:1px solid var(--line);border-radius:999px;font-size:12px;font-weight:600;background:#fff;color:var(--ink2);white-space:nowrap}
+.sfp.up{border-color:var(--red);color:var(--red)}
+@media print{.sfp{font-size:7.5pt;padding:1px 7px}}
 `;

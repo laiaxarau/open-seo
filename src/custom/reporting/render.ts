@@ -11,6 +11,11 @@
 import { integer } from "@/custom/radar/format";
 import { looksUnreadable } from "@/custom/reporting/auditQuality";
 import {
+  featuresAbove,
+  SERP_LABEL,
+  SERP_TAKES_CLICKS,
+} from "@/custom/reporting/serpLabels";
+import {
   KIND_COLOR,
   KIND_NAME,
   KIND_SHORT,
@@ -752,6 +757,7 @@ function executiveSummary(report: ReportFull, signer: Signer): string {
 /** Which tab explains each conclusion. */
 const INSIGHT_TAB: Record<string, string> = {
   traffic: "trafico",
+  serp: "busquedas",
   update: "trafico",
   source: "trafico",
   weekday: "trafico",
@@ -819,10 +825,11 @@ const INSIGHT_GROUPS: {
 ];
 
 function insightsBlock(report: ReportFull): string {
-  const items = buildInsights(report.snapshot, report.notes.trends ?? []).slice(
-    0,
-    15,
-  );
+  const items = buildInsights(
+    report.snapshot,
+    report.notes.trends ?? [],
+    report.notes.serp ?? [],
+  ).slice(0, 15);
   if (items.length === 0) return "";
   const verdict = buildVerdict(report.snapshot);
   const top = items.slice(0, 3);
@@ -1272,6 +1279,9 @@ function diagnosisBlock(report: ReportFull): string {
   const trendOf = new Map(
     (report.notes.trends ?? []).map((line) => [line.query, line] as const),
   );
+  const serpOf = new Map(
+    (report.notes.serp ?? []).map((line) => [line.query, line] as const),
+  );
   const cards = items
     .map((item) => {
       const row = report.snapshot.pageLosers.find(
@@ -1294,11 +1304,25 @@ function diagnosisBlock(report: ReportFull): string {
             }</span>`,
         )
         .join("");
+      const serpChips = (row?.queries ?? [])
+        .flatMap((move) => {
+          const line = serpOf.get(move.query);
+          return line && featuresAbove(line).length > 0 ? [line] : [];
+        })
+        .map(
+          (line) =>
+            `<span class="gtc"><b>Página de resultados</b>«${esc(line.query)}»: ${featuresAbove(
+              line,
+            )
+              .map((type) => SERP_LABEL[type].toLowerCase())
+              .join(", ")} por encima de tu resultado</span>`,
+        )
+        .join("");
       const fixes = item.fixes
         .filter((fix) => fix.trim())
         .map((fix) => `<li>${inline(fix)}</li>`)
         .join("");
-      return `<article class="dgc"><div class="u">${pageLink(item.url)}</div>${meta}${trendChips ? `<div class="gt">${trendChips}</div>` : ""}<p>${inline(item.text)}</p>${fixes ? `<h3>Actuaciones previstas</h3><ul class="fix">${fixes}</ul>` : ""}</article>`;
+      return `<article class="dgc"><div class="u">${pageLink(item.url)}</div>${meta}${trendChips || serpChips ? `<div class="gt">${trendChips}${serpChips}</div>` : ""}<p>${inline(item.text)}</p>${fixes ? `<h3>Actuaciones previstas</h3><ul class="fix">${fixes}</ul>` : ""}</article>`;
     })
     .join("");
   return block(
@@ -1363,11 +1387,80 @@ function trendsBlock(report: ReportFull): string {
   );
 }
 
+/** How much of the fall the searches asked about explain: the report says it
+ *  so the reader knows if the figures are a sample or most of the story. */
+function coverageText(report: ReportFull, key: "trends" | "serp"): string {
+  const part = report.notes.coverage?.[key];
+  if (!part || part.share === null || part.queries === 0) return "";
+  return ` Las ${num(part.queries)} búsquedas que más clics pierden explican el ${Math.round(part.share * 100)} % de los clics perdidos (${num(report.notes.coverage?.lostClicks ?? 0)}).`;
+}
+
+/** What Google's results page showed for the key searches. */
+function serpBlock(report: ReportFull): string {
+  const lines = report.notes.serp ?? [];
+  if (lines.length === 0) return "";
+  const flagged = lines.filter((line) => featuresAbove(line).length > 0);
+  const withAi = lines.filter((line) =>
+    featuresAbove(line).includes("ai_overview"),
+  );
+  const summary = chips([
+    { value: num(lines.length), label: "búsquedas consultadas en Google" },
+    {
+      value: num(flagged.length),
+      label: "con funciones por encima de tu resultado",
+    },
+    { value: num(withAi.length), label: "con respuesta de IA por encima" },
+  ]);
+  const table = dataTable(
+    [
+      { label: "Búsqueda" },
+      { label: "Tu posición", num: true, asc: true },
+      { label: "Funciones en la página de Google" },
+      { label: "Por delante de ti" },
+    ],
+    lines.map((line) => [
+      { h: queryLink(line.query), v: line.query, cls: "pg" },
+      {
+        h:
+          line.ownPosition === null
+            ? "Fuera del top 10"
+            : String(line.ownPosition),
+        v: line.ownPosition ?? 99,
+      },
+      {
+        h:
+          line.features.length === 0
+            ? "—"
+            : line.features
+                .map(
+                  (item) =>
+                    `<span class="sfp${item.above && SERP_TAKES_CLICKS.includes(item.type) ? " up" : ""}">${SERP_LABEL[item.type]}${item.above && SERP_TAKES_CLICKS.includes(item.type) ? " ↑" : ""}</span>`,
+                )
+                .join(""),
+        v: line.features.length,
+      },
+      {
+        h: line.ahead.length > 0 ? esc(line.ahead.join(", ")) : "—",
+        v: line.ahead.join(", "),
+      },
+    ]),
+    "No hay datos.",
+    true,
+  );
+  return block(
+    report,
+    "serp",
+    "Qué muestra Google en las búsquedas clave",
+    "Las funciones de la página de resultados (respuestas de IA, vídeos, fragmentos destacados, compras, anuncios) pueden llevarse el clic aunque la posición de la web no cambie. Aquí se ve qué mostraba Google en las búsquedas que más clics pierden.",
+    `${summary}<div class="sheet">${table}</div><p class="gtn"><b>Página de resultados de Google.</b> Datos reales: consulta en vivo de la primera página, en ordenador y en España, el ${day(lines[0].fetchedAt.slice(0, 10))}. Una página de resultados varía entre personas, dispositivos y días. La flecha ↑ marca una función que aparece por encima del resultado de la web.${coverageText(report, "serp")}</p>`,
+  );
+}
+
 /** Says out loud that the interest figures are real Google Trends data. */
 function trendsNote(report: ReportFull): string {
   const lines = report.notes.trends ?? [];
   if (lines.length === 0) return "";
-  return `<p class="gtn"><b>Google Trends.</b> Los datos de interés son reales: es el interés relativo (de 0 a 100) de cada búsqueda en Google en España, comparando este periodo con el anterior, consultado el ${day(lines[0].fetchedAt.slice(0, 10))}. No son volúmenes de búsqueda. Un guion indica que Google Trends no tiene datos suficientes de ese periodo (búsquedas de poco volumen).</p>`;
+  return `<p class="gtn"><b>Google Trends.</b> Los datos de interés son reales: es el interés relativo (de 0 a 100) de cada búsqueda en Google en España, comparando este periodo con el anterior, consultado el ${day(lines[0].fetchedAt.slice(0, 10))}. No son volúmenes de búsqueda. Un guion indica que Google Trends no tiene datos suficientes de ese periodo (búsquedas de poco volumen).${coverageText(report, "trends")}</p>`;
 }
 
 // --------------------------------------------------------------- topics
@@ -2469,7 +2562,8 @@ export function renderReportDocument(
         lead("busquedas") +
         show("marca", () => brandBlock(report)) +
         show("consultas", () => searchesBlock(report)) +
-        show("tendencias", () => trendsBlock(report)),
+        show("tendencias", () => trendsBlock(report)) +
+        show("serp", () => serpBlock(report)),
     },
     {
       id: "paginas",
