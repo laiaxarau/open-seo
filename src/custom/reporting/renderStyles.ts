@@ -1018,4 +1018,16 @@ details.op>summary{break-after:avoid;padding:8px 0 6px}
 .end .fm{display:none}
 .end .foot a{color:var(--red)}
 }
+/* ---- v27: the category of every task, and a filter by category ---- */
+.ictop{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.cat{display:inline-block;padding:4px 12px;border-radius:999px;background:var(--ink);color:#fff;font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;line-height:1.4}
+.ictop .ip{margin-left:auto}
+.ith{margin:0 0 8px;font-size:17px;line-height:1.3;letter-spacing:-.01em}
+.catf{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 6px}
+.catf button{font:inherit;font-size:13px;font-weight:600;padding:7px 14px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--ink2);cursor:pointer;transition:border-color .15s,background .15s}
+.catf button small{margin-left:6px;font-size:12px;font-weight:700;color:var(--muted)}
+.catf button:hover{border-color:var(--ink)}
+.catf button.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.catf button.on small{color:#ff8da1}
+@media print{.catf{display:none}.cat{padding:2px 9px;font-size:7.5pt}.ith{font-size:11pt}}
 `;

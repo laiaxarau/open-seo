@@ -1828,7 +1828,7 @@ function issueCard(item: IssueAgg, pageCount: number): string {
     .join("");
   const where =
     pageCount > 1 ? `Afecta a ${item.pages.size} de ${pageCount} páginas` : "";
-  const meta = [esc(item.category), where].filter(Boolean).join(" · ");
+  const meta = esc(where);
   const sorted = [...item.elements].sort(
     (x, y) => STATUS_RANK[x.status] - STATUS_RANK[y.status],
   );
@@ -1857,7 +1857,7 @@ function issueCard(item: IssueAgg, pageCount: number): string {
         `<a class="lk" href="${esc(source.url)}" target="_blank" rel="noopener noreferrer">${esc(source.label)} ↗</a>`,
     )
     .join(" · ");
-  return `<article class="is"><div class="ish"><span class="ik ${item.kind}">${item.kind === "fail" ? "A corregir" : "A mejorar"}</span><h4>${esc(item.title)}</h4>${groupPoints(item) > 0 ? `<span class="ip">+${one.format(groupPoints(item))} pts</span>` : ""}</div>${pills ? `<div class="pills">${pills}</div>` : ""}<div class="im">${meta}</div>${item.detail ? `<p>${withLinks(item.detail)}</p>` : ""}${item.evidence ? `<p class="ev">${withLinks(item.evidence)}</p>` : ""}${relatedBlock(item)}${elements ? `${legend}<div class="els">${elements}</div>` : ""}${sources ? `<div class="src">Documentación oficial: ${sources}</div>` : ""}</article>`;
+  return `<article class="is" data-cat="${esc(item.category)}"><div class="ictop"><span class="cat">${esc(item.category)}</span><span class="ik ${item.kind}">${item.kind === "fail" ? "A corregir" : "A mejorar"}</span>${groupPoints(item) > 0 ? `<span class="ip">+${one.format(groupPoints(item))} pts</span>` : ""}</div><h4 class="ith">${esc(item.title)}</h4>${pills ? `<div class="pills">${pills}</div>` : ""}${meta ? `<div class="im">${meta}</div>` : ""}${item.detail ? `<p>${withLinks(item.detail)}</p>` : ""}${item.evidence ? `<p class="ev">${withLinks(item.evidence)}</p>` : ""}${relatedBlock(item)}${elements ? `${legend}<div class="els">${elements}</div>` : ""}${sources ? `<div class="src">Documentación oficial: ${sources}</div>` : ""}</article>`;
 }
 
 /** The issues of a set of pages: first what to fix, then what to improve. */
@@ -1865,18 +1865,38 @@ function issueLists(pages: AuditPage[]): string {
   const issues = issuesOf(pages);
   const list = (items: IssueAgg[], title: string) =>
     items.length > 0
-      ? `<h3 class="ih">${title} (${items.length})</h3><div class="isl">${items.map((item) => issueCard(item, pages.length)).join("")}</div>`
+      ? `<h3 class="ih">${title} (<span class="ihn">${items.length}</span>)</h3><div class="isl">${items.map((item) => issueCard(item, pages.length)).join("")}</div>`
       : "";
-  return (
-    list(
-      issues.filter((item) => item.kind === "fail"),
-      "Qué corregir",
-    ) +
-    list(
-      issues.filter((item) => item.kind === "warn"),
-      "Qué mejorar",
-    )
-  );
+  // The categories that have something to do, in Microaudit's own order.
+  const order = new Map<string, number>();
+  for (const page of pages) {
+    for (const category of page.categories) {
+      if (!order.has(category.name)) order.set(category.name, category.id);
+    }
+  }
+  const counts = new Map<string, number>();
+  for (const item of issues) {
+    counts.set(item.category, (counts.get(item.category) ?? 0) + 1);
+  }
+  const filter =
+    counts.size > 1
+      ? `<div class="catf" role="group" aria-label="Filtrar las tareas por categoría"><button type="button" class="on" data-cat="">Todas <small>${issues.length}</small></button>${[
+          ...counts.entries(),
+        ]
+          .sort((x, y) => (order.get(x[0]) ?? 99) - (order.get(y[0]) ?? 99))
+          .map(
+            ([name, count]) =>
+              `<button type="button" data-cat="${esc(name)}">${esc(name)} <small>${count}</small></button>`,
+          )
+          .join("")}</div>`
+      : "";
+  return `<div class="iss">${filter}${list(
+    issues.filter((item) => item.kind === "fail"),
+    "Qué corregir",
+  )}${list(
+    issues.filter((item) => item.kind === "warn"),
+    "Qué mejorar",
+  )}</div>`;
 }
 
 /** The analysis of one page type: its score out of 100, the score of every
