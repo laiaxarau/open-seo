@@ -76,6 +76,42 @@ describe("buildInsights", () => {
   });
 });
 
+describe("the traffic finding and Google Trends", () => {
+  const falling = {
+    ...base,
+    totals: { clicks: 2500, impressions: 84000, ctr: 0.03, position: 10 },
+    prevTotals: { clicks: 2700, impressions: 90000, ctr: 0.03, position: 10 },
+  } as unknown as ReportSnapshot;
+  const line = (change: number) => ({
+    query: "x",
+    now: 50,
+    before: 50,
+    change,
+    from: "2026-08-01",
+    to: "2026-09-30",
+    fetchedAt: "2026-10-26T10:00:00Z",
+  });
+
+  it("says Google Trends confirms a fall of demand, naming the source", () => {
+    const item = buildInsights(falling, [line(-0.3), line(-0.2)]).find(
+      (found) => found.id === "traffic",
+    );
+    expect(item?.body).toContain("Google Trends lo confirma");
+  });
+
+  it("says when Google Trends does not confirm it", () => {
+    const item = buildInsights(falling, [line(0.02)]).find(
+      (found) => found.id === "traffic",
+    );
+    expect(item?.body).toContain("Google Trends no confirma");
+  });
+
+  it("admits it is a guess when there is no Google Trends data", () => {
+    const item = buildInsights(falling).find((found) => found.id === "traffic");
+    expect(item?.body).toContain("no hay datos de Google Trends");
+  });
+});
+
 describe("silverLining", () => {
   it("finds something encouraging even when clicks fall", () => {
     const worse = {

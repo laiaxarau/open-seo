@@ -819,7 +819,10 @@ const INSIGHT_GROUPS: {
 ];
 
 function insightsBlock(report: ReportFull): string {
-  const items = buildInsights(report.snapshot).slice(0, 15);
+  const items = buildInsights(report.snapshot, report.notes.trends ?? []).slice(
+    0,
+    15,
+  );
   if (items.length === 0) return "";
   const verdict = buildVerdict(report.snapshot);
   const top = items.slice(0, 3);
@@ -1304,6 +1307,59 @@ function diagnosisBlock(report: ReportFull): string {
     "Diagnóstico de las páginas que pierden tráfico",
     "Se ha revisado cada página y las búsquedas que más han caído. Todas tienen recuperación posible: cuentan ya con historial en Google y solo requieren refuerzo.",
     `<div class="dg">${cards}</div>${trendsNote(report)}`,
+  );
+}
+
+/** What Google Trends said about every search that was asked about. */
+function trendsBlock(report: ReportFull): string {
+  const lines = [...(report.notes.trends ?? [])].sort(
+    (a, b) => (a.change ?? 0) - (b.change ?? 0),
+  );
+  if (lines.length === 0) return "";
+  const known = lines.filter((line) => line.change !== null);
+  const falling = known.filter((line) => (line.change ?? 0) <= -0.1).length;
+  const summary = chips([
+    {
+      value: num(lines.length),
+      label: "búsquedas consultadas en Google Trends",
+    },
+    { value: num(falling), label: "con el interés en descenso (−10 % o más)" },
+    {
+      value: num(known.filter((line) => (line.change ?? 0) >= 0.1).length),
+      label: "con el interés al alza (+10 % o más)",
+    },
+  ]);
+  const table = dataTable(
+    [
+      { label: "Búsqueda" },
+      { label: "Interés antes", num: true },
+      { label: "Interés ahora", num: true },
+      { label: "Cambio", num: true },
+    ],
+    lines.map((line) => [
+      { h: queryLink(line.query), v: line.query },
+      {
+        h: line.before === null ? "—" : one.format(line.before),
+        v: line.before ?? -1,
+      },
+      { h: one.format(line.now), v: line.now },
+      {
+        h:
+          line.change === null
+            ? "—"
+            : `<span class="dl ${line.change > 0 ? "up" : line.change < 0 ? "down" : "flat"}">${line.change > 0 ? "▲" : line.change < 0 ? "▼" : "="} ${signedPctText(line.change)}</span>`,
+        v: line.change ?? 0,
+      },
+    ]),
+    "No hay datos.",
+    true,
+  );
+  return block(
+    report,
+    "tendencias",
+    "Interés de las búsquedas en Google Trends",
+    "Datos reales de Google Trends sobre las búsquedas que explican las caídas: si la gente las busca menos, igual o más que en el periodo anterior. Es el interés relativo (de 0 a 100) en España, no el volumen de búsquedas.",
+    `${summary}<div class="sheet">${table}</div>${trendsNote(report)}`,
   );
 }
 
@@ -2412,7 +2468,8 @@ export function renderReportDocument(
       html:
         lead("busquedas") +
         show("marca", () => brandBlock(report)) +
-        show("consultas", () => searchesBlock(report)),
+        show("consultas", () => searchesBlock(report)) +
+        show("tendencias", () => trendsBlock(report)),
     },
     {
       id: "paginas",

@@ -377,6 +377,7 @@ export const REPORT_SECTIONS = [
   { id: "temas", label: "Temas" },
   { id: "consultas", label: "Búsquedas" },
   { id: "marca", label: "Búsquedas de marca" },
+  { id: "tendencias", label: "Interés en Google Trends" },
   { id: "reparto", label: "De dónde vienen los clics" },
   { id: "semana", label: "Distribución semanal" },
   { id: "oportunidades", label: "Oportunidades de crecimiento" },
@@ -427,6 +428,7 @@ export const REPORT_TABS: {
     blocks: [
       { id: "marca", label: "Búsquedas de marca" },
       { id: "consultas", label: "Búsquedas que mueven el tráfico" },
+      { id: "tendencias", label: "Interés en Google Trends" },
     ],
   },
   {

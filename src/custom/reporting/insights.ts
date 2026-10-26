@@ -7,7 +7,11 @@
 import { integer } from "@/custom/radar/format";
 import type { GoogleUpdate } from "@/custom/radar/googleUpdates";
 import type { DailyPoint } from "@/custom/radar/radarAnalysis";
-import type { ChangeLine, ReportSnapshot } from "@/custom/reporting/types";
+import type {
+  ChangeLine,
+  ReportSnapshot,
+  TrendLine,
+} from "@/custom/reporting/types";
 
 export type Insight = {
   id: string;
@@ -62,6 +66,38 @@ const CAUSE: Record<string, string> = {
   nueva: "es una página nueva",
   perdida: "ya no recibe clics",
 };
+
+/** What Google Trends says about a set of searches: the middle change of
+ *  their interest, or null when it has nothing on any of them. */
+function trendSummary(
+  trends: TrendLine[],
+  queries?: string[],
+): { median: number; count: number } | null {
+  const wanted = queries ? new Set(queries) : null;
+  const changes = trends
+    .filter((line) => (wanted ? wanted.has(line.query) : true))
+    .flatMap((line) => (line.change === null ? [] : [line.change]))
+    .sort((a, b) => a - b);
+  if (changes.length === 0) return null;
+  const middle = Math.floor(changes.length / 2);
+  const median =
+    changes.length % 2 === 1
+      ? changes[middle]
+      : (changes[middle - 1] + changes[middle]) / 2;
+  return { median, count: changes.length };
+}
+
+/** The sentence that says what Google Trends found, always naming the source. */
+function trendSentence(summary: { median: number; count: number }): string {
+  const searches = `${summary.count} ${summary.count === 1 ? "búsqueda" : "búsquedas"}`;
+  if (summary.median <= -0.1) {
+    return `Google Trends lo confirma: el interés por ${searches === "1 búsqueda" ? "la búsqueda consultada" : `las ${searches}`} consultadas baja un ${one.format(Math.abs(summary.median) * 100)} % frente al periodo anterior (dato real de Google Trends).`;
+  }
+  if (summary.median < -0.03) {
+    return `Google Trends muestra un descenso moderado del interés (${signedPct(summary.median)}) en ${searches}: la demanda explica solo una parte de la caída (dato real de Google Trends).`;
+  }
+  return `Google Trends no confirma una caída de la demanda: el interés por ${searches} se mantiene (${signedPct(summary.median)}), así que la causa está más en el posicionamiento de esas búsquedas (dato real de Google Trends).`;
+}
 
 export function pathOf(url: string): string {
   try {
@@ -213,7 +249,10 @@ export function contributions(snapshot: ReportSnapshot): Contribution[] {
   return out;
 }
 
-function trafficInsight(snapshot: ReportSnapshot): Insight | null {
+function trafficInsight(
+  snapshot: ReportSnapshot,
+  trends: TrendLine[] = [],
+): Insight | null {
   const { totals, prevTotals } = snapshot;
   if (!snapshot.period.comparable || prevTotals.impressions <= 0) return null;
   const clicks = change(totals.clicks, prevTotals.clicks) ?? 0;
@@ -265,12 +304,24 @@ function trafficInsight(snapshot: ReportSnapshot): Insight | null {
     };
   }
   if (clicks <= -0.05) {
+    const seen = trendSummary(trends);
+    const confirmed = seen !== null && seen.median <= -0.03;
     return {
       ...base,
+      stats: seen
+        ? [
+            ...stats,
+            { label: "Interés (Google Trends)", value: signedPct(seen.median) },
+          ]
+        : stats,
       tone: Math.abs(clicks) >= 0.2 ? "bad" : "warn",
       weight: 92,
-      title: "Menos búsquedas, sin deterioro del posicionamiento",
-      body: `Los clics bajan un ${pct(clicks)} y las impresiones un ${pct(impressions)}, pero la posición media apenas cambia. Lo más probable es una caída de la demanda (estacionalidad o interés por el tema) y no un problema técnico.`,
+      title: seen
+        ? confirmed
+          ? "Menos búsquedas, sin deterioro del posicionamiento"
+          : "Los clics bajan aunque el interés por el tema se mantiene"
+        : "Menos búsquedas, sin deterioro del posicionamiento",
+      body: `Los clics bajan un ${pct(clicks)} y las impresiones un ${pct(impressions)}, pero la posición media apenas cambia. ${seen ? trendSentence(seen) : "Lo más probable es una caída de la demanda (estacionalidad o interés por el tema), aunque Search Console no permite confirmarlo y no hay datos de Google Trends en este informe."}`,
     };
   }
   return {
@@ -316,6 +367,7 @@ function sourceInsight(snapshot: ReportSnapshot): Insight | null {
 function pageInsight(
   row: ChangeLine | undefined,
   kind: "winner" | "loser",
+  trends: TrendLine[] = [],
 ): Insight | null {
   if (!row || Math.abs(row.clicksDelta) < 10) return null;
   const queries = (row.queries ?? [])
@@ -323,6 +375,10 @@ function pageInsight(
     .map((item) => `«${item.query}» (${signed(item.clicksDelta)})`);
   const up = kind === "winner";
   const cause = row.cause ? CAUSE[row.cause] : undefined;
+  const seen = trendSummary(
+    trends,
+    (row.queries ?? []).map((item) => item.query),
+  );
   return {
     id: kind,
     topic: up ? "Página que más crece" : "Página que más pierde",
@@ -331,7 +387,7 @@ function pageInsight(
     title: up
       ? `${pathOf(row.key)} es el mayor avance (${signed(row.clicksDelta)} clics)`
       : `${pathOf(row.key)} es la mayor caída (${signed(row.clicksDelta)} clics)`,
-    body: `Pasa de ${num(row.prevClicks)} a ${num(row.clicks)} clics${change(row.clicks, row.prevClicks) !== null ? ` (${signedPct(change(row.clicks, row.prevClicks) ?? 0)})` : ""}.${queries.length ? ` Lo explican ${queries.join(" y ")}.` : ""}${!up && cause ? ` Causa probable: ${cause}.` : ""}${up ? " Conviene analizar qué tiene esa página (formato, enlaces, actualización) y replicarlo en páginas similares." : " Es la primera página que conviene revisar."}`,
+    body: `Pasa de ${num(row.prevClicks)} a ${num(row.clicks)} clics${change(row.clicks, row.prevClicks) !== null ? ` (${signedPct(change(row.clicks, row.prevClicks) ?? 0)})` : ""}.${queries.length ? ` Lo explican ${queries.join(" y ")}.` : ""}${!up && seen ? ` ${trendSentence(seen)}` : !up && cause ? ` Causa probable (estimada con Search Console, sin datos de Google Trends): ${cause}.` : ""}${up ? " Conviene analizar qué tiene esa página (formato, enlaces, actualización) y replicarlo en páginas similares." : " Es la primera página que conviene revisar."}`,
     stats: [
       {
         label: "Posición",
@@ -712,7 +768,10 @@ export function highlights(snapshot: ReportSnapshot): string[] {
 }
 
 /** All the findings, most important first. */
-export function buildInsights(snapshot: ReportSnapshot): Insight[] {
+export function buildInsights(
+  snapshot: ReportSnapshot,
+  trends: TrendLine[] = [],
+): Insight[] {
   const loser = [...snapshot.pageLosers].sort(
     (a, b) => a.clicksDelta - b.clicksDelta,
   )[0];
@@ -720,10 +779,10 @@ export function buildInsights(snapshot: ReportSnapshot): Insight[] {
     (a, b) => b.clicksDelta - a.clicksDelta,
   )[0];
   const all = [
-    trafficInsight(snapshot),
+    trafficInsight(snapshot, trends),
     updateInsight(snapshot),
     sourceInsight(snapshot),
-    pageInsight(loser, "loser"),
+    pageInsight(loser, "loser", trends),
     pageInsight(winner, "winner"),
     concentrationInsight(snapshot),
     brandInsight(snapshot),

@@ -485,7 +485,7 @@ function brief(report: ReportFull, business: string, trends: TrendLine[] = []) {
           ),
         }
       : undefined,
-    hallazgos_calculados: buildInsights(snapshot)
+    hallazgos_calculados: buildInsights(snapshot, trends)
       .slice(0, 9)
       .map((item) => ({ titulo: item.title, detalle: item.body })),
   };
